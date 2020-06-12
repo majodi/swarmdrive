@@ -43,9 +43,9 @@ void Motor::setup_mcpwm_configuration(int pwmFreq) {
     mcpwm_init(MCPWM_UNIT_0, MCPWM_TIMER_0, &pwm_config);   // Configure PWM0A & PWM0B with above settings
     mcpwm_init(MCPWM_UNIT_0, MCPWM_TIMER_1, &pwm_config);   // Configure PWM0A & PWM0B with above settings
     mcpwm_init(MCPWM_UNIT_0, MCPWM_TIMER_2, &pwm_config);   // Configure PWM0A & PWM0B with above settings
-    mcpwm_sync_enable(MCPWM_UNIT_0, MCPWM_TIMER_0, MCPWM_SELECT_SYNC_OUT0, 0); // !!! MCPWM_SELECT_SYNC_OUT0 didn't exist in mcpwm.h, had to edit the header
-    mcpwm_sync_enable(MCPWM_UNIT_0, MCPWM_TIMER_1, MCPWM_SELECT_SYNC_OUT0, 0); // it sets to sync all timers to timer0
-    mcpwm_sync_enable(MCPWM_UNIT_0, MCPWM_TIMER_2, MCPWM_SELECT_SYNC_OUT0, 0); // questions about this posted on esp32.com
+    mcpwm_sync_enable(MCPWM_UNIT_0, MCPWM_TIMER_0, MCPWM_SELECT_TIMER0, 0); // !!! MCPWM_SELECT_TIMER1 didn't exist in mcpwm.h, had to edit the header
+    mcpwm_sync_enable(MCPWM_UNIT_0, MCPWM_TIMER_1, MCPWM_SELECT_TIMER0, 0); // it sets to sync all timers to timer0
+    mcpwm_sync_enable(MCPWM_UNIT_0, MCPWM_TIMER_2, MCPWM_SELECT_TIMER0, 0); // see Github issue https://github.com/espressif/esp-idf/issues/5429
     MCPWM0.timer[0].sync.out_sel = 1;                       // timer 0 as sync input (https://github.com/espressif/esp-idf/issues/3567)
     vTaskDelay(500/portTICK_PERIOD_MS);                     // wait long enough for large period PWM (low frequency) to be able to sysnc
     MCPWM0.timer[0].sync.out_sel = 0;                       // done syncing
