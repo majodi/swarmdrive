@@ -1,9 +1,14 @@
-#include <Arduino.h>
+// #include <Arduino.h>
 #include <string>
+#include <cstring>
 #include <vector>
 #include <deque>
 #include <algorithm>
 #include <iostream>
+#include <freertos/FreeRTOSConfig.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include <freertos/queue.h>
 #include "ns_termcontrol.h"
 #include "ns_console.h"
 

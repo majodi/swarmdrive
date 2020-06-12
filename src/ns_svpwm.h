@@ -1,13 +1,15 @@
 /**************************************************************************/
 /*!
-    @file     ns_console.h
+    @file     ns_svpwm.h
     @author   NickStick BV
 
     @section  HISTORY
 
     v0.0 - Start of work
 
-    Library to add crude command console to embedded systems
+    Motor class for Space Vector PWM BLDC motor commutation using
+    the ESP32 mcpwm module. This code uses the ns_console library
+    for UI purpose.
 
     @section LICENSE
 
@@ -39,35 +41,61 @@
     SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 /**************************************************************************/
-#include <string>
 
-#ifndef _NS_CONSOLE_H_
-#define _NS_CONSOLE_H_
+#include <vector>
+#include <stdint.h>
+#include <driver/gpio.h>
+#include "esp_timer.h"
 
-#define _NS_CON_OPTION_NO_UI 1
-#define _NS_CON_OPTION_NO_IO 2
+#ifndef _NS_SVPWM_H_
+#define _NS_SVPWM_H_
 
-// 100 - message types
-#define _NS_REG_COMMAND 100
-#define _NS_REG_PARAMETER 101
-#define _NS_SET_PARAMETER 102
-#define _NS_LOG_MESSAGE 103
-#define _NS_COMMAND 104
+struct motorConfig {
+    motorConfig() : debugPin(GPIO_NUM_NC) {}
+    gpio_num_t rpsPinSDA;
+    gpio_num_t rpsPinSCL;
+    gpio_num_t pin0A;
+    gpio_num_t pin0B;
+    gpio_num_t pin1A;
+    gpio_num_t pin1B;
+    gpio_num_t pin2A;
+    gpio_num_t pin2B;
+    gpio_num_t debugPin;
+    int resolution;
+    int pwmFreq;
+};
 
-namespace ns_console {
-	struct consoleMessageStruct			// struct for console messages
-	{
-		int messageType;
-		int identifier;
-		char shortcut[3];
-		char hrName[11];
-		int value;
-	};
+class Motor {
 
-    void initConsole(int consoleOption = 0);
-    void sendToConsole(int messageType, int identifier, int value = 0, std::string shortcut = "", std::string hrName = "");
-	void consoleLogMessage(std::string message, int id = 0, int value = 0);
-    consoleMessageStruct availableConsoleMessage();
-}
+    public:
+        Motor(motorConfig* MC);
+        // ...
 
-#endif // #ifndef _NS_CONSOLE_H_
+    private:
+        //variables
+        std::vector<float> _svpwm;
+        int _resolution;
+        int _phaseShift;
+        int _stepA;
+        int _stepB;
+        int _stepC;
+        int _stepFreq;
+        bool _running;
+        bool _lastRunningState;
+        bool _forward;
+        int _angleStep;
+        int _lastAngleStep;
+        int _signalRotationAngleStep;
+        int _turns;
+        int64_t _turnTime;
+        int _turnDuration;
+        int64_t _consoleUpdate;
+        esp_timer_handle_t periodic_timer;                          // timer handle
+
+        //methods
+        void setup_mcpwm_pins(motorConfig* MC);
+        void setup_mcpwm_configuration(int pwmFreq);
+
+};
+
+#endif // #ifndef _NS_SVPWM_H_

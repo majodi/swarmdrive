@@ -1,13 +1,13 @@
 /**************************************************************************/
 /*!
-    @file     ns_console.h
+    @file     ns_as5048b.h
     @author   NickStick BV
 
     @section  HISTORY
 
     v0.0 - Start of work
 
-    Library to add crude command console to embedded systems
+    Class for I2C communication with AS5048b Rotation Position Sensor
 
     @section LICENSE
 
@@ -39,35 +39,55 @@
     SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 /**************************************************************************/
-#include <string>
+#include <driver/gpio.h>
+#include "driver/i2c.h"
 
-#ifndef _NS_CONSOLE_H_
-#define _NS_CONSOLE_H_
+#ifndef _NS_AS5048B_H_
+#define _NS_AS5048B_H_
 
-#define _NS_CON_OPTION_NO_UI 1
-#define _NS_CON_OPTION_NO_IO 2
+#define WRITE_BIT I2C_MASTER_WRITE              /*!< I2C master write */
+#define READ_BIT I2C_MASTER_READ                /*!< I2C master read */
+#define ACK_CHECK_EN 0x1                        /*!< I2C master will check ack from slave*/
+#define ACK_CHECK_DIS 0x0                       /*!< I2C master will not check ack from slave */
+#define ACK_VAL 0x0                             /*!< I2C ack value */
+#define NACK_VAL 0x1                            /*!< I2C nack value */
 
-// 100 - message types
-#define _NS_REG_COMMAND 100
-#define _NS_REG_PARAMETER 101
-#define _NS_SET_PARAMETER 102
-#define _NS_LOG_MESSAGE 103
-#define _NS_COMMAND 104
+// AS5048B registers
+#define ANGLE_REG 0xFE
+#define ZERO_REG 0x16
 
-namespace ns_console {
-	struct consoleMessageStruct			// struct for console messages
-	{
-		int messageType;
-		int identifier;
-		char shortcut[3];
-		char hrName[11];
-		int value;
-	};
+struct sensorConfig {
+    sensorConfig() : i2c_frequency(400000), i2c_port(I2C_NUM_0), chipAddress(0x40) {}
+    gpio_num_t i2c_gpio_sda;
+    gpio_num_t i2c_gpio_scl;
+    int i2c_frequency;
+    i2c_port_t i2c_port;
+    uint8_t chipAddress;
+};
 
-    void initConsole(int consoleOption = 0);
-    void sendToConsole(int messageType, int identifier, int value = 0, std::string shortcut = "", std::string hrName = "");
-	void consoleLogMessage(std::string message, int id = 0, int value = 0);
-    consoleMessageStruct availableConsoleMessage();
-}
+class RPS {
 
-#endif // #ifndef _NS_CONSOLE_H_
+    public:
+
+        RPS(sensorConfig sensorConfig);
+
+        int         resetAngleZero();
+        int         getAngle();
+        int         getDataH();
+        int         getDataL();
+
+    private:
+
+        //variables
+        uint8_t     _chipAddress;
+        i2c_port_t  _i2c_port;
+        double      _lastAngle;
+        uint8_t     _data_h, _data_l;
+
+        //methods
+        int         readAngle();
+        int         writeZeroAngle(uint16_t value);
+
+};
+
+#endif // #ifndef _NS_AS5048B_H_

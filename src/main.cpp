@@ -1,35 +1,79 @@
-test2
-#include <Arduino.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
 #include "ns_console.h"
-#include "ns_mcpwm.h"
+#include "ns_svpwm.h"
 
-// #include <esp_task.h>
-
-// using namespace std;
 using namespace ns_console;
-using namespace ns_mcpwm;
 
-static void mainSetup() {
-    initArduino();
-    initConsole();
+// console commands
+#define _NS_C_START 1
+#define _NS_C_STOP 2
+#define _NS_C_REVERSE 3
+
+// console parameters
+#define _NS_P_STEP_FREQ 1
+#define _NS_P_DIRECTION 2
+#define _NS_P_RPM 3
+
+// defaults
+#define _NS_DEF_STEP_FREQ 100
+#define _NS_DEF_DIRECTION 1
+
+static void consoleRegistration() {
+    sendToConsole(_NS_REG_COMMAND, _NS_C_START, 0, "r", "Run Motor"); // register console commands/parameters
+    sendToConsole(_NS_REG_COMMAND, _NS_C_STOP, 0, "s", "Stop Motor");
+    sendToConsole(_NS_REG_COMMAND, _NS_C_REVERSE, 0, "rv", "Reverse");
+    sendToConsole(_NS_REG_PARAMETER, _NS_P_STEP_FREQ, _NS_DEF_STEP_FREQ, "sf", "Step Freq");
+    sendToConsole(_NS_REG_PARAMETER, _NS_P_DIRECTION, _NS_DEF_DIRECTION, "d", "Direction");
+    sendToConsole(_NS_REG_PARAMETER, _NS_P_RPM, 0, "--", "RPM");
 }
 
-static void taskDispatch() {
-    mcpwmConfig mcpwmTaskConfig;
-    mcpwmTaskConfig.pin0A = GPIO_NUM_16; //GPIO_NUM_15;
-    mcpwmTaskConfig.pin0B = GPIO_NUM_21; //GPIO_NUM_2;
-    mcpwmTaskConfig.pin1A = GPIO_NUM_17; //GPIO_NUM_0;
-    mcpwmTaskConfig.pin1B = GPIO_NUM_22; //GPIO_NUM_4;
-    mcpwmTaskConfig.pin2A = GPIO_NUM_18; //GPIO_NUM_16;
-    mcpwmTaskConfig.pin2B = GPIO_NUM_23; //GPIO_NUM_17;
-    xTaskCreatePinnedToCore(mcpwmTask, "mcpwmTask", 4096, &mcpwmTaskConfig, tskIDLE_PRIORITY, NULL, 1);
-    while(1) {
-        vTaskDelay(1);
-    }
+// main task
+void mainTask(void *arg) {
+    motorConfig* mainTaskMC = (motorConfig *) arg;
+    Motor motor(mainTaskMC);
+
+    // int lastPotValue = 0;                                       // initialize last pot value
+    // int potSteadyCnt = 0;                                       // initialize pot steady counter (0 is undefined >0 is cycles steady (same) value)
+//     // mcpwmParams motor = initMotor();                            // initialize motor
+//     // startTimer(motor, periodic_timer);                          // start the timer
+//     // while(1) {
+//     //     #ifdef _NS_POT_PIN
+//     //     readPot(lastPotValue, potSteadyCnt, motor, periodic_timer);             // get pot value
+//     //     #endif
+//     //     checkMessages(motor, periodic_timer);                                   // get console messages (commands or parameter updates)
+//     //     checkFullTurn(motor);                                                   // check for full turn and update console with RPM and turns
+//     //     if (motor.running != motor.lastRunningState) {                          // on running state change
+//     //         if (motor.lastRunningState) {                                       // ** were we running?
+//     //             ESP_ERROR_CHECK(esp_timer_stop(periodic_timer));                // stop timer (= stop running)
+//     //             disengage();                                                    // disengage motor
+//     //         } else {                                                            // ** else (we were not running); start timer (start motor)
+//     //             ESP_ERROR_CHECK(esp_timer_start_periodic(periodic_timer, (1.0 / motor.stepFreq) * 1000000));
+//     //         }
+//     //         motor.lastRunningState = motor.running;
+//     //     }
+//     //     vTaskDelay(1);
+//     // }
 }
 
 extern "C" void app_main()
 {
-    mainSetup();
-    taskDispatch();
+    motorConfig MC;
+    initConsole();
+    consoleRegistration();
+    MC.pin0A        = GPIO_NUM_16; //GPIO_NUM_15;
+    MC.pin0B        = GPIO_NUM_21; //GPIO_NUM_2;
+    MC.pin1A        = GPIO_NUM_17; //GPIO_NUM_0;
+    MC.pin1B        = GPIO_NUM_22; //GPIO_NUM_4;
+    MC.pin2A        = GPIO_NUM_18; //GPIO_NUM_16;
+    MC.pin2B        = GPIO_NUM_23; //GPIO_NUM_17;
+    MC.debugPin     = GPIO_NUM_19;
+    MC.rpsPinSDA    = GPIO_NUM_32;
+    MC.rpsPinSCL    = GPIO_NUM_33;
+    MC.resolution   = 360;
+    MC.pwmFreq      = 40000;
+    xTaskCreatePinnedToCore(mainTask, "mainTask", 4096, &MC, tskIDLE_PRIORITY, NULL, 1);
+    while(1) {
+        vTaskDelay(1);
+    }
 }

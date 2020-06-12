@@ -1,4 +1,3 @@
-#include <Arduino.h>
 #include <string>
 #include <iostream>
 #include "ns_termcontrol.h"
@@ -25,15 +24,15 @@ namespace ns_termcontrol {
     /**************************************************************************/
     string terminalReadUntil(string sendStr, char waitFor, int timeOut) {
         string retval = "";
-        int c = 0;
-        printf("%s",sendStr.c_str());
-        int start = millis();
-        while(!((millis() - start) > timeOut || c == waitFor)) {
-            c = getc(stdin);
-            if(c != EOF && c != waitFor) {
-                retval.push_back(c);
-            }
-        }
+        // int c = 0;
+        // printf("%s",sendStr.c_str());
+        // int start = millis();
+        // while(!((millis() - start) > timeOut || c == waitFor)) {
+        //     c = getc(stdin);
+        //     if(c != EOF && c != waitFor) {
+        //         retval.push_back(c);
+        //     }
+        // }
         return retval;
     }
 
