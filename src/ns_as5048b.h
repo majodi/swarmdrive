@@ -69,8 +69,9 @@ class RPS {
 
     public:
 
-        RPS(sensorConfig sensorConfig);
+        RPS();
 
+        void        init(sensorConfig sensorConfig);
         int         resetAngleZero();
         int         getAngle();
         int         getDataH();

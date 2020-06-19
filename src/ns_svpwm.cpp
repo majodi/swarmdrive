@@ -1,21 +1,179 @@
 #include "ns_svpwm.h"
-#include "driver/mcpwm.h"
-// #include "soc/mcpwm_reg.h"
-#include "soc/mcpwm_struct.h"
-// #include "esp_timer.h"
-// #include "ns_console.h"
-#include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
-
 
 /*========================================================================*/
 /*                            CONSTRUCTORS                                */
 /*========================================================================*/
 
 Motor::Motor(motorConfig* MC) {
+    sensorConfig sensorConfig;
+    sensorConfig.i2c_gpio_sda = MC->rpsPinSDA;
+    sensorConfig.i2c_gpio_scl = MC->rpsPinSCL;
+    sensorConfig.i2c_frequency = 600000;
+    assert(MC->rpsResolution > 0);
+    _rpsResolution = MC->rpsResolution;
+    _rps.init(sensorConfig);
+    _rps.resetAngleZero();
     setup_mcpwm_pins(MC);
     setup_mcpwm_configuration(MC->pwmFreq);
-    // setup_rps();
+    setSignalRotationAngle();
+}
+
+// set motor at signal step
+void Motor::setPosition(int step) {
+    if (step < 0 || step >= _arraySize) return;
+    int a = step;
+    int b = a < (_arraySize - _phaseShift) ? a + _phaseShift : a - (_arraySize - _phaseShift);
+    int c = b < (_arraySize - _phaseShift) ? b + _phaseShift : b - (_arraySize - _phaseShift);
+    if (_switchCoils) {
+        mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_0, MCPWM_OPR_A, _svpwm[a]);
+        mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_1, MCPWM_OPR_A, _svpwm[c]);
+        mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_2, MCPWM_OPR_A, _svpwm[b]);
+    } else {
+        mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_0, MCPWM_OPR_A, _svpwm[a]);
+        mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_1, MCPWM_OPR_A, _svpwm[b]);
+        mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_2, MCPWM_OPR_A, _svpwm[c]);
+    }
+}
+
+// determine initial direction and save value
+void Motor::setInitialDirection() {
+    setPosition(0);                                             // set motor at signal 0 position
+    ets_delay_us(200);                                          // give it some time to settle
+    _rps.resetAngleZero();                                      // reset rps angle to this position
+    setPosition(_arraySize / 4);                                // move motor to 1/4 (90 deg.) position to avoid back and forth when configuration mismatch
+    ets_delay_us(1000000);                                      // longer delay for possible visual inspect of movement
+    int startAngle = _rps.getAngle();                           // set this position as start angle for measurement
+    setPosition(_arraySize - (_arraySize / 4));                 // move motor to 3/4 (270 deg.) position
+    ets_delay_us(1000000);                                      // give oppertunity for visual inspect
+    int endAngle = _rps.getAngle();                             // get end angle of movement
+    if (endAngle > startAngle) {                                // determine direction: end angle > start so probably clockwise
+        if ((endAngle - startAngle) < 120) {                    // if movement was not in excess of 1/3 for lowest resolution of a one-coil-pair motor (we should have moved at least 1/2, 180 deg.)
+            _clockwise = true;                                  // then safe to say we moved clockwise, set clockwise to true
+        } else {
+            _clockwise = false;                                 // else we moved counter clockwise, set clockwise to false
+        }
+    } else {                                                    // end angle < start so probably counter clockwise
+        if ((startAngle - endAngle) < 120) {                    // if movement was not in excess of 1/3 for lowest resolution of a one-coil-pair motor (we should have moved at least 1/2, 180 deg.)
+            _clockwise = false;                                 // then safe to say we moved counter clockwise, set clockwise to false
+        } else {
+            _clockwise = true;                                  // else we moved clockwise, set clockwise to true
+        }
+    }
+}
+
+// for measurement purposes
+void Motor::trySetSignalRotationAngle() {
+    assert(!_running);                                          // motor should not be running
+    _rps.resetAngleZero();                                      // reset angle to zero position
+    ets_delay_us(1000);                                          // give it some time to settle
+    int startAngle = _rps.getAngle();                           // record start angle
+    for(int signalStep = 0; signalStep < _arraySize; signalStep++) {    // full signal rotation
+        setPosition(signalStep);                                        // set next position
+        ets_delay_us(200);                                              // give it some time
+    }
+    ets_delay_us(500000);                                       // visual inspect delay
+    int endAngle = _rps.getAngle();                             // get end angle
+    if (_clockwise) {                                           // if motor is miving in clockwise direction
+        if (startAngle > (_rpsResolution / 2)) {                // and start angle > physical half; we started before 12 o'clock zero position
+            _signalRotationAngle = abs(((float)(endAngle - startAngle) / _rpsResolution) * _arraySize);                     // safe to assume end/start difference is angle
+        } else {
+            _signalRotationAngle = abs(((float)(_rpsResolution - endAngle + startAngle) / _rpsResolution) * _arraySize);    // else we should account for gap after 12 o'clock start position
+        }
+    } else {                                                    // if motor is moving in counter clockwise direction
+        if (startAngle < (_rpsResolution / 2)) {                // and start angle < physical half; we started after 12 o'clock zero position
+            _signalRotationAngle = abs(((float)(endAngle - startAngle) / _rpsResolution) * _arraySize);                     // safe to assume end/start difference is angle
+        } else {
+            _signalRotationAngle = abs(((float)(_rpsResolution - startAngle + endAngle) / _rpsResolution) * _arraySize);    // else we should account for gap before 12 o'clock start position
+        }
+    }
+}
+
+// disengage motor
+void Motor::disengage() {
+    mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_0, MCPWM_OPR_A, 0);    // disengage motor (duty cycle zero, no power)
+    mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_1, MCPWM_OPR_A, 0);
+    mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_2, MCPWM_OPR_A, 0);
+}
+
+// do full signal rotation and save total signal rotation angle
+void Motor::setSignalRotationAngle() {
+    assert(!_running);                                          // motor should not be running
+    setInitialDirection();                                      // direction is needed here
+    setPosition(0);                                             // set motor at zero position
+    ets_delay_us(500000);                                      // give it some time to settle (longer for visual queue)
+    trySetSignalRotationAngle();                                // set signal rotation angle with current config
+    if ((_signalRotationAngle > 270) || (_signalRotationAngle < 6)) {   // if angle outcome is to small or to big (for a multi coil-pair motor) the motor probable moved back and forth unexpected
+        _switchCoils = true;                                    // try to fix this with a virtual coil switch
+        _clockwise = !_clockwise;                               // and invert the determined direction accordingly
+        trySetSignalRotationAngle();                            // second attempt
+        assert(!(_signalRotationAngle > 270) || (_signalRotationAngle < 6));    // assert on fail second attempt
+        trySetSignalRotationAngle();                            // make final measurement
+        assert(!(_signalRotationAngle > 270) || (_signalRotationAngle < 6));    // assert on fail final measurement
+    }
+    _rps.resetAngleZero();                                      // reset angle
+    ets_delay_us(500000);                                       // visual queue for end of measurements
+    disengage();                                                // disengage coils
+}
+
+int Motor::getSignalRotationAngle() {
+    return _signalRotationAngle;
+}
+
+int Motor::getAngle() {
+    return _angle;
+}
+
+// callback for high resolution timer
+void Motor::onTimer(void *arg) {
+    Motor* m = ((Motor*)arg);
+    m->_lastAngle = m->_angle;
+    m->_angle = m->_rps.getAngle();
+#ifdef NS_TIMER_DEBUG_PIN
+    gpio_set_level(NS_TIMER_DEBUG_PIN, 1);
+#endif
+    // set next step based on current angle and direction (90 degrees for maximum torque)
+    // m->stepA = (((motor->angle % motor->signalRotationAngle) * motor->arraySize) / motor->signalRotationAngle) + (motor->forward ? 90 : -90);
+    // motor->stepB = motor->stepA + motor->phaseShift;
+    // motor->stepC = motor->stepB + motor->phaseShift;
+
+    //     mcpwmParams* motor = (mcpwmParams*)arg;
+    //     motor->lastAngle = motor->angle;
+    //     motor->angle = motor->rps.angleR(U_DEG);
+    //     // set next step based on current angle and direction (90 degrees for maximum torque)
+    //     motor->stepA = (((motor->angle % motor->signalRotationAngle) * motor->arraySize) / motor->signalRotationAngle) + (motor->forward ? 90 : -90);
+    //     motor->stepB = motor->stepA + motor->phaseShift;
+    //     motor->stepC = motor->stepB + motor->phaseShift;
+    //     // adjust for (over/under)flow (next step)
+    //     motor->stepA = motor->stepA < 0 ? motor->arraySize-1 + motor->stepA : (motor->stepA > motor->arraySize-1 ? 0 + motor->stepA - motor->arraySize-1 : motor->stepA);
+    //     motor->stepB = motor->stepB < 0 ? motor->arraySize-1 + motor->stepB : (motor->stepB > motor->arraySize-1 ? 0 + motor->stepB - motor->arraySize-1 : motor->stepB);
+    //     motor->stepC = motor->stepC < 0 ? motor->arraySize-1 + motor->stepC : (motor->stepC > motor->arraySize-1 ? 0 + motor->stepC - motor->arraySize-1 : motor->stepC);
+    //     // set SVPWM duty cycle percentage
+    //     // printf("current angle: %d - next step: %d, %d, %d\n", motor->angle, motor->stepA, motor->stepB, motor->stepC);
+    //     mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_0, MCPWM_OPR_A, motor->running ? motor->svpwm[motor->stepA] : 0);
+    //     mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_1, MCPWM_OPR_A, motor->running ? motor->svpwm[motor->stepB] : 0);
+    //     mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_2, MCPWM_OPR_A, motor->running ? motor->svpwm[motor->stepC] : 0);
+#ifdef NS_TIMER_DEBUG_PIN
+    gpio_set_level(NS_TIMER_DEBUG_PIN, 0);
+#endif
+}
+
+// high resolution timer setup and start
+void Motor::createTimer() {
+    const esp_timer_create_args_t periodic_timer_args = {
+        &Motor::onTimer,
+        this,
+        ESP_TIMER_TASK,
+        "onTimer"
+    };
+    ESP_ERROR_CHECK(esp_timer_create(&periodic_timer_args, &_periodic_timer));
+}
+
+void Motor::startTimer(uint64_t interval) {
+    ESP_ERROR_CHECK(esp_timer_start_periodic(_periodic_timer, interval));
+}
+
+void Motor::stopTimer() {
+    ESP_ERROR_CHECK(esp_timer_stop(_periodic_timer));
 }
 
 // setup pins
@@ -25,11 +183,11 @@ void Motor::setup_mcpwm_pins(motorConfig* MC) {
     mcpwm_gpio_init(MCPWM_UNIT_0, MCPWM1A, MC->pin1A);
     mcpwm_gpio_init(MCPWM_UNIT_0, MCPWM1B, MC->pin1B);
     mcpwm_gpio_init(MCPWM_UNIT_0, MCPWM2A, MC->pin2A);
-    mcpwm_gpio_init(MCPWM_UNIT_0, MCPWM2B, MC->pin2B);  
-    if (MC->debugPin != GPIO_NUM_NC) {
-        gpio_pad_select_gpio(MC->debugPin);                  // debug pin as a gpio function
-        gpio_set_direction(MC->debugPin, GPIO_MODE_OUTPUT);  // set debug pin as output
-    }
+    mcpwm_gpio_init(MCPWM_UNIT_0, MCPWM2B, MC->pin2B);
+#ifdef NS_TIMER_DEBUG_PIN
+        gpio_pad_select_gpio(NS_TIMER_DEBUG_PIN);                  // debug pin as a gpio function
+        gpio_set_direction(NS_TIMER_DEBUG_PIN, GPIO_MODE_OUTPUT);  // set debug pin as output
+#endif
 }
 
 // setup mcpwm configuration

@@ -30,14 +30,18 @@ static void consoleRegistration() {
 
 // main task
 void mainTask(void *arg) {
-    motorConfig* mainTaskMC = (motorConfig *) arg;
-    Motor motor(mainTaskMC);
+    Motor motor((motorConfig *) arg);
+    // motor.createTimer();
+    // motor.startTimer(1000);
+    printf("SignalRotationAngle: %d\n", motor.getSignalRotationAngle());
+
 
     // int lastPotValue = 0;                                       // initialize last pot value
     // int potSteadyCnt = 0;                                       // initialize pot steady counter (0 is undefined >0 is cycles steady (same) value)
 //     // mcpwmParams motor = initMotor();                            // initialize motor
 //     // startTimer(motor, periodic_timer);                          // start the timer
-//     // while(1) {
+    while(1) {
+        // printf("angle: %d\n", motor.getAngle());
 //     //     #ifdef _NS_POT_PIN
 //     //     readPot(lastPotValue, potSteadyCnt, motor, periodic_timer);             // get pot value
 //     //     #endif
@@ -52,27 +56,29 @@ void mainTask(void *arg) {
 //     //         }
 //     //         motor.lastRunningState = motor.running;
 //     //     }
-//     //     vTaskDelay(1);
-//     // }
+        vTaskDelay(1);
+    }
 }
 
 extern "C" void app_main()
 {
     motorConfig MC;
-    initConsole();
-    consoleRegistration();
-    MC.pin0A        = GPIO_NUM_16; //GPIO_NUM_15;
-    MC.pin0B        = GPIO_NUM_21; //GPIO_NUM_2;
-    MC.pin1A        = GPIO_NUM_17; //GPIO_NUM_0;
-    MC.pin1B        = GPIO_NUM_22; //GPIO_NUM_4;
-    MC.pin2A        = GPIO_NUM_18; //GPIO_NUM_16;
-    MC.pin2B        = GPIO_NUM_23; //GPIO_NUM_17;
-    MC.debugPin     = GPIO_NUM_19;
-    MC.rpsPinSDA    = GPIO_NUM_32;
-    MC.rpsPinSCL    = GPIO_NUM_33;
-    MC.resolution   = 360;
-    MC.pwmFreq      = 40000;
-    xTaskCreatePinnedToCore(mainTask, "mainTask", 4096, &MC, tskIDLE_PRIORITY, NULL, 1);
+    // initConsole();
+    // consoleRegistration();
+    MC.pin0A         = GPIO_NUM_16; //GPIO_NUM_15;
+    MC.pin0B         = GPIO_NUM_21; //GPIO_NUM_2;
+    MC.pin1A         = GPIO_NUM_17; //GPIO_NUM_0;
+    MC.pin1B         = GPIO_NUM_22; //GPIO_NUM_4;
+    MC.pin2A         = GPIO_NUM_18; //GPIO_NUM_16;
+    MC.pin2B         = GPIO_NUM_23; //GPIO_NUM_17;
+    MC.rpsPinSDA     = GPIO_NUM_32;
+    MC.rpsPinSCL     = GPIO_NUM_33;
+    MC.rpsResolution = 16383; // 2^14 - 1 (is max)
+    MC.pwmFreq       = 40000;
+
+//!!! heapsize!!!
+
+    xTaskCreatePinnedToCore(mainTask, "mainTask", 8192, &MC, tskIDLE_PRIORITY, NULL, 1);
     while(1) {
         vTaskDelay(1);
     }

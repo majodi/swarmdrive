@@ -1,7 +1,9 @@
 #include "ns_as5048b.h"
 #include "esp32/rom/ets_sys.h"
 
-RPS::RPS(sensorConfig sensorConfig) {
+RPS::RPS() {}
+
+void RPS::init(sensorConfig sensorConfig) {
     i2c_config_t conf;
     conf.mode = I2C_MODE_MASTER;
     conf.sda_io_num = sensorConfig.i2c_gpio_sda;
