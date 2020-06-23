@@ -73,7 +73,7 @@ class RPS {
 
         void        init(sensorConfig sensorConfig);
         int         resetAngleZero();
-        int         getAngle();
+        int         getAngleR();
         int         getDataH();
         int         getDataL();
 

@@ -21,7 +21,7 @@ int RPS::getDataH() {return _data_h;}
 
 int RPS::getDataL() {return _data_l;}
 
-int RPS::getAngle() {
+int RPS::getAngleR() {
     int ret = readAngle();
     if (ret == ESP_OK) {
         uint16_t angleVal = _data_h << 6;
