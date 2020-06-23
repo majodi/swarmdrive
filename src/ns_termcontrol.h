@@ -39,6 +39,11 @@
     SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 /**************************************************************************/
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include <string>
+#include <iostream>
+
 #ifndef _NS_TERMCONTROL_H_
 #define _NS_TERMCONTROL_H_
 

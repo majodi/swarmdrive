@@ -16,10 +16,10 @@ using namespace ns_console;
 #define _NS_P_RPM 3
 
 // defaults
-#define _NS_DEF_STEP_FREQ 100
+#define _NS_DEF_STEP_FREQ 5000
 #define _NS_DEF_DIRECTION 1
 
-static void consoleRegistration() {
+void consoleRegistration() {
     sendToConsole(_NS_REG_COMMAND, _NS_C_START, 0, "r", "Run Motor"); // register console commands/parameters
     sendToConsole(_NS_REG_COMMAND, _NS_C_STOP, 0, "s", "Stop Motor");
     sendToConsole(_NS_REG_COMMAND, _NS_C_REVERSE, 0, "rv", "Reverse");
@@ -28,13 +28,41 @@ static void consoleRegistration() {
     sendToConsole(_NS_REG_PARAMETER, _NS_P_RPM, 0, "--", "RPM");
 }
 
+// check if console has command or parameter setting
+// void checkMessages(mcpwmParams &motor, esp_timer_handle_t periodic_timer) {
+void checkMessages(Motor &motor) {
+    consoleMessageStruct consoleMessage = availableConsoleMessage();                    // see if there are new messages from console
+    if (consoleMessage.messageType != 0) {                                              // if known message type
+        if (consoleMessage.messageType == _NS_COMMAND) {                                // *** if command
+            if (consoleMessage.identifier == _NS_C_START) motor.startMotor();           // and command is START then start motor with default step freq
+            else if (consoleMessage.identifier == _NS_C_STOP) {                         // if STOP
+                motor.stopMotor();                                                      // signal not running
+                sendToConsole(_NS_SET_PARAMETER, _NS_P_RPM, 0);                         // ask console to set RPM to zero
+            }
+//             else if (consoleMessage.identifier == _NS_C_REVERSE) {                      // if REVERSE
+//                 motor.forward = !motor.forward;                                         // reverse direction
+//                 sendToConsole(_NS_SET_PARAMETER, _NS_P_DIRECTION, motor.forward);       // ask console to let user know (display new state)
+//             }
+        }
+        else if (consoleMessage.messageType == _NS_SET_PARAMETER) {                     // *** if parameter change
+//             if (consoleMessage.identifier == _NS_P_DIRECTION) {                         // direction change
+//                 if (consoleMessage.value == 0 || consoleMessage.value == 1) {           // if can only be forward or backward
+//                     motor.forward = consoleMessage.value;                               // set direction
+//                 } else {
+//                     consoleLogMessage("dir. error");                                    // else let console log error message
+//                     sendToConsole(_NS_SET_PARAMETER, _NS_P_DIRECTION, motor.forward);   // set direction to forward
+//                 }
+//             }
+            if (consoleMessage.identifier == _NS_P_STEP_FREQ) {                         // step frequency change
+                motor.setStepFreq(consoleMessage.value);                                // set new step frequency
+            }
+        }
+    }
+}
+
 // main task
 void mainTask(void *arg) {
     Motor motor((motorConfig *) arg);
-    motor.createTimer();
-    motor.startTimer(8000);
-    printf("SignalRotationAngle: %d\n", motor.getSignalRotationAngle());
-
 
     // int lastPotValue = 0;                                       // initialize last pot value
     // int potSteadyCnt = 0;                                       // initialize pot steady counter (0 is undefined >0 is cycles steady (same) value)
@@ -45,7 +73,7 @@ void mainTask(void *arg) {
 //     //     #ifdef _NS_POT_PIN
 //     //     readPot(lastPotValue, potSteadyCnt, motor, periodic_timer);             // get pot value
 //     //     #endif
-//     //     checkMessages(motor, periodic_timer);                                   // get console messages (commands or parameter updates)
+        checkMessages(motor);                                                         // get console messages (commands or parameter updates)
 //     //     checkFullTurn(motor);                                                   // check for full turn and update console with RPM and turns
 //     //     if (motor.running != motor.lastRunningState) {                          // on running state change
 //     //         if (motor.lastRunningState) {                                       // ** were we running?
@@ -63,8 +91,8 @@ void mainTask(void *arg) {
 extern "C" void app_main()
 {
     motorConfig MC;
-    // initConsole();
-    // consoleRegistration();
+    initConsole();
+    consoleRegistration();
     MC.pin0A         = GPIO_NUM_16; //GPIO_NUM_15;
     MC.pin0B         = GPIO_NUM_21; //GPIO_NUM_2;
     MC.pin1A         = GPIO_NUM_17; //GPIO_NUM_0;
@@ -75,6 +103,7 @@ extern "C" void app_main()
     MC.rpsPinSCL     = GPIO_NUM_33;
     MC.rpsResolution = 16383; // 2^14 - 1 (is max)
     MC.pwmFreq       = 40000;
+    MC.stepFreq      = _NS_DEF_STEP_FREQ;
 
 //!!! heapsize!!!
 

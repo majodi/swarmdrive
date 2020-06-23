@@ -17,6 +17,28 @@ Motor::Motor(motorConfig* MC) {
     setup_mcpwm_pins(MC);
     setup_mcpwm_configuration(MC->pwmFreq);
     determineSignalRotationAngleR();
+    createTimer();
+    _stepFreq = MC->stepFreq;
+}
+
+// start motor (running true)
+void Motor::startMotor() {
+    startTimer(_stepFreq);
+    _running = true;
+}
+
+void Motor::stopMotor() {
+    stopTimer();
+    disengage();
+    _running = false;
+}
+
+void Motor::setStepFreq(uint64_t interval) {
+    _stepFreq = interval;
+    if (_running) {
+        stopMotor();
+        startMotor();
+    }
 }
 
 // fill svpwm lookup table
@@ -81,11 +103,10 @@ void Motor::determineSignalRotationAngleR() {
     for(int signalStep = 0; signalStep < _arraySize; signalStep++) {    // full signal rotation
         commutate(signalStep);                                          // set next position
         ets_delay_us(200);                                              // give it some time
-        int physAngleR = _rps.getAngleR();
     }
     ets_delay_us(500000);                                       // visual inspect delay
     int endAngle = _rps.getAngleR();                            // get end angle
-    printf("cw: %d, start angle: %d, end angle: %d\n", _clockwise, startAngle, endAngle);
+    // printf("cw: %d, start angle: %d, end angle: %d\n", _clockwise, startAngle, endAngle);
     // if (_clockwise) {                                           // if motor is miving in clockwise direction
         if (startAngle > (_rpsResolution / 2)) {                // and start angle > physical half; we started before 12 o'clock zero position
             _signalRotationAngleR = abs((float)(endAngle - startAngle));    // safe to assume end/start difference is angle
@@ -107,6 +128,7 @@ void Motor::disengage() {
     mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_0, MCPWM_OPR_A, 0);    // disengage motor (duty cycle zero, no power)
     mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_1, MCPWM_OPR_A, 0);
     mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_2, MCPWM_OPR_A, 0);
+    _running = false;
 }
 
 int Motor::getSignalRotationAngle() {
@@ -188,6 +210,7 @@ void Motor::setup_mcpwm_configuration(int pwmFreq) {
     mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_1, MCPWM_OPR_B, 100);
     mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_2, MCPWM_OPR_A, 0);
     mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_2, MCPWM_OPR_B, 100);
+    _running = false;
 }
 
 // setup Rotation Position Sensor

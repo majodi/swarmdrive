@@ -1,5 +1,3 @@
-#include <string>
-#include <iostream>
 #include "ns_termcontrol.h"
 
 using std::string;
@@ -24,15 +22,15 @@ namespace ns_termcontrol {
     /**************************************************************************/
     string terminalReadUntil(string sendStr, char waitFor, int timeOut) {
         string retval = "";
-        // int c = 0;
-        // printf("%s",sendStr.c_str());
-        // int start = millis();
-        // while(!((millis() - start) > timeOut || c == waitFor)) {
-        //     c = getc(stdin);
-        //     if(c != EOF && c != waitFor) {
-        //         retval.push_back(c);
-        //     }
-        // }
+        int c = 0;
+        printf("%s",sendStr.c_str());
+        TickType_t start = xTaskGetTickCount();
+        while(!((xTaskGetTickCount() - start) > timeOut || c == waitFor)) {
+            c = getc(stdin);
+            if(c != EOF && c != waitFor) {
+                retval.push_back(c);
+            }
+        }
         return retval;
     }
 
@@ -50,8 +48,8 @@ namespace ns_termcontrol {
         if (!cursorMovement) return false;
         printf(_NS_TERM_SAV_POS);
         fflush(stdout);
-        terminalReadUntil(_NS_TERM_GOTO_REP(999, 999), 91, 1000);
-        string rc = terminalReadUntil("", 82, 500);
+        terminalReadUntil(_NS_TERM_GOTO_REP(999, 999), 91, 200);
+        string rc = terminalReadUntil("", 82, 200);
         printf(_NS_TERM_RES_POS);
         fflush(stdout);
         if(rc.length() < 4) return false;
