@@ -31,8 +31,8 @@ static void consoleRegistration() {
 // main task
 void mainTask(void *arg) {
     Motor motor((motorConfig *) arg);
-    // motor.createTimer();
-    // motor.startTimer(1000);
+    motor.createTimer();
+    motor.startTimer(8000);
     printf("SignalRotationAngle: %d\n", motor.getSignalRotationAngle());
 
 

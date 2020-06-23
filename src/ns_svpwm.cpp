@@ -33,23 +33,16 @@ void Motor::setup_svpwm() {
 }
 
 // set motor at signal step
-void Motor::commutate(int step) {
-    if (step < 0 || step >= _arraySize) return;
-
-    // int a = step;
-    // int b = step >= _phaseShift ? step - _phaseShift : step + _dblPhaseShift;
-    // int c = step < _dblPhaseShift ? step + _phaseShift : step - _dblPhaseShift;
-    // mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_0, MCPWM_OPR_A, _svpwm[a]);
-    // mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_1, MCPWM_OPR_A, _svpwm[b]);
-    // mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_2, MCPWM_OPR_A, _svpwm[c]);
-    // ets_delay_us(20000);
-    // printf("--> %d - %d - %d - [%f] - [%f] - [%f] - %d\n", a, b, c, _svpwm[a], _svpwm[b], _svpwm[c], _rps.getAngleR());
-
+void Motor::commutate(int stepRequest) {
+    int step = stepRequest >= _arraySize ? stepRequest - _arraySize : (stepRequest < 0 ? _arraySize + stepRequest : stepRequest);
     mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_0, MCPWM_OPR_A, _svpwm[step]);
     mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_1, MCPWM_OPR_A, _svpwm[step > _phaseShift ? step - _phaseShift : step + _dblPhaseShift]);
     mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_2, MCPWM_OPR_A, _svpwm[step < _dblPhaseShift ? step + _phaseShift : step - _dblPhaseShift]);
+    _lastStep = step;
 }
 
+// !!! do we need this? !!!
+// !!!!!!!!!!!!!!!!!!!!!!!!
 // determine initial direction and save value
 void Motor::determineDirection() {
     commutate(0);                                               // set motor at signal 0 position
@@ -79,82 +72,33 @@ void Motor::determineDirection() {
 // do full signal rotation and save total signal rotation angle
 void Motor::determineSignalRotationAngleR() {
     assert(!_running);                                          // motor should not be running
-    determineDirection();                                       // direction is needed here
+    // determineDirection();                                       // direction is needed here
+    ets_delay_us(1000000);
     commutate(0);                                               // set motor at zero position
-
-    // mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_0, MCPWM_OPR_A, 100);
-    // mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_1, MCPWM_OPR_A, 0);
-    // mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_2, MCPWM_OPR_A, 0);
-    // ets_delay_us(2000000);
-    // printf("angle: %d\n", _rps.getAngleR());
-    // mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_0, MCPWM_OPR_A, 0);
-    // mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_1, MCPWM_OPR_A, 100);
-    // mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_2, MCPWM_OPR_A, 0);
-    // ets_delay_us(2000000);
-    // printf("angle: %d\n", _rps.getAngleR());
-    // mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_0, MCPWM_OPR_A, 0);
-    // mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_1, MCPWM_OPR_A, 0);
-    // mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_2, MCPWM_OPR_A, 100);
-    // ets_delay_us(2000000);
-    // printf("angle: %d\n", _rps.getAngleR());
-    // printf("----");
-
-    // mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_0, MCPWM_OPR_A, 100);
-    // mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_1, MCPWM_OPR_A, 0);
-    // mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_2, MCPWM_OPR_A, 0);
-    // ets_delay_us(1000000);
-    // printf("angle: %d\n", _rps.getAngleR());
-    // mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_0, MCPWM_OPR_A, 100);
-    // mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_1, MCPWM_OPR_A, 100);
-    // mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_2, MCPWM_OPR_A, 0);
-    // ets_delay_us(1000000);
-    // printf("angle: %d\n", _rps.getAngleR());
-    // mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_0, MCPWM_OPR_A, 0);
-    // mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_1, MCPWM_OPR_A, 100);
-    // mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_2, MCPWM_OPR_A, 0);
-    // ets_delay_us(1000000);
-    // printf("angle: %d\n", _rps.getAngleR());
-    // mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_0, MCPWM_OPR_A, 0);
-    // mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_1, MCPWM_OPR_A, 100);
-    // mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_2, MCPWM_OPR_A, 100);
-    // ets_delay_us(1000000);
-    // printf("angle: %d\n", _rps.getAngleR());
-    // mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_0, MCPWM_OPR_A, 0);
-    // mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_1, MCPWM_OPR_A, 0);
-    // mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_2, MCPWM_OPR_A, 100);
-    // ets_delay_us(1000000);
-    // printf("angle: %d\n", _rps.getAngleR());
-    // mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_0, MCPWM_OPR_A, 100);
-    // mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_1, MCPWM_OPR_A, 0);
-    // mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_2, MCPWM_OPR_A, 100);
-    // ets_delay_us(1000000);
-    // printf("angle: %d\n", _rps.getAngleR());
-    // disengage();                                                // disengage coils
-    // return;
-
     ets_delay_us(500000);                                       // give it some time to settle (longer for visual queue)
     _rps.resetAngleZero();                                      // reset angle to zero position
     int startAngle = _rps.getAngleR();                          // record start angle
     for(int signalStep = 0; signalStep < _arraySize; signalStep++) {    // full signal rotation
         commutate(signalStep);                                          // set next position
         ets_delay_us(200);                                              // give it some time
-        // printf("angle: %d\n", _rps.getAngleR());
+        int physAngleR = _rps.getAngleR();
     }
     ets_delay_us(500000);                                       // visual inspect delay
     int endAngle = _rps.getAngleR();                            // get end angle
-    if (_clockwise) {                                           // if motor is miving in clockwise direction
+    printf("cw: %d, start angle: %d, end angle: %d\n", _clockwise, startAngle, endAngle);
+    // if (_clockwise) {                                           // if motor is miving in clockwise direction
         if (startAngle > (_rpsResolution / 2)) {                // and start angle > physical half; we started before 12 o'clock zero position
             _signalRotationAngleR = abs((float)(endAngle - startAngle));    // safe to assume end/start difference is angle
         } else {
             _signalRotationAngleR = abs((float)(_rpsResolution - endAngle + startAngle));   // else we should account for gap after 12 o'clock start position
         }
-    } else {                                                    // if motor is moving in counter clockwise direction
-        if (startAngle < (_rpsResolution / 2)) {                // and start angle < physical half; we started after 12 o'clock zero position
-            _signalRotationAngleR = abs((float)(endAngle - startAngle));    // safe to assume end/start difference is angle
-        } else {
-            _signalRotationAngleR = abs((float)(_rpsResolution - startAngle + endAngle));   // else we should account for gap before 12 o'clock start position
-        }
-    }
+    // } else {                                                    // if motor is moving in counter clockwise direction
+    //     if (startAngle < (_rpsResolution / 2)) {                // and start angle < physical half; we started after 12 o'clock zero position
+    //         _signalRotationAngleR = abs((float)(endAngle - startAngle));    // safe to assume end/start difference is angle
+    //     } else {
+    //         _signalRotationAngleR = abs((float)(_rpsResolution - startAngle + endAngle));   // else we should account for gap before 12 o'clock start position
+    //     }
+    // }
     disengage();                                                // disengage coils
 }
 
@@ -181,19 +125,8 @@ void Motor::onTimer(void *arg) {
 #ifdef NS_TIMER_DEBUG_PIN
     gpio_set_level(NS_TIMER_DEBUG_PIN, 1);
 #endif
-    // m->_signalPosition = (((m->_angleR % m->_signalRotationAngleR) * m->_arraySize) / m->_signalRotationAngleR) + (m->_clockwise ? 90 : -90);
-    m->commutate((((m->_angleR % m->_signalRotationAngleR) * m->_arraySize) / m->_signalRotationAngleR) + (m->_clockwise ? 90 : -90));
-//     m->_stepB = m->_stepA + m->_phaseShift;
-//     m->_stepC = m->_stepB + m->_phaseShift;
-//     // adjust for (over/under)flow (next step)
-//     m->_stepA = m->_stepA < 0 ? m->_arraySize + m->_stepA : (m->_stepA > (m->_arraySize-1) ? 0 + (m->_stepA - m->_arraySize) : m->_stepA);
-//     m->_stepB = m->_stepB < 0 ? m->_arraySize + m->_stepB : (m->_stepB > (m->_arraySize-1) ? 0 + (m->_stepB - m->_arraySize) : m->_stepB);
-//     m->_stepB = m->_stepC < 0 ? m->_arraySize + m->_stepC : (m->_stepC > (m->_arraySize-1) ? 0 + (m->_stepC - m->_arraySize) : m->_stepC);
-//     // set SVPWM duty cycle percentage
-//     // printf("current angle: %d - next step: %d, %d, %d\n", motor->angle, motor->stepA, motor->stepB, motor->stepC);
-//     mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_0, MCPWM_OPR_A, m->_running ? m->_svpwm[m->_stepA] : 0);
-//     mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_1, MCPWM_OPR_A, m->_running ? m->_svpwm[m->_stepB] : 0);
-//     mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_2, MCPWM_OPR_A, m->_running ? m->_svpwm[m->_stepC] : 0);
+    float currentSignalFraction = (float)((m->_rpsResolution - m->_angleR) % m->_signalRotationAngleR) / m->_signalRotationAngleR;
+    m->commutate((currentSignalFraction * m->_arraySize) + 90);
 #ifdef NS_TIMER_DEBUG_PIN
     gpio_set_level(NS_TIMER_DEBUG_PIN, 0);
 #endif

@@ -120,6 +120,7 @@ class Motor {
         RPS _rps;
         int _angleR = 0;
         int _lastAngleR = 0;
+        int _lastStep = 0;
         esp_timer_handle_t _periodic_timer;                          // timer handle
 
         //methods
