@@ -79,13 +79,11 @@ class RPS {
 
     private:
 
-        //variables
         uint8_t     _chipAddress;
         i2c_port_t  _i2c_port;
         double      _lastAngle;
         uint8_t     _data_h, _data_l;
 
-        //methods
         int         readAngle();
         int         writeZeroAngle(uint16_t value);
 

@@ -40,6 +40,16 @@
 */
 /**************************************************************************/
 #include <string>
+#include <cstring>
+#include <vector>
+#include <deque>
+#include <algorithm>
+#include <iostream>
+#include <freertos/FreeRTOSConfig.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include <freertos/queue.h>
+#include "ns_termcontrol.h"
 
 #ifndef _NS_CONSOLE_H_
 #define _NS_CONSOLE_H_

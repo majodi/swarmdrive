@@ -48,8 +48,8 @@ namespace ns_termcontrol {
         if (!cursorMovement) return false;
         printf(_NS_TERM_SAV_POS);
         fflush(stdout);
-        terminalReadUntil(_NS_TERM_GOTO_REP(999, 999), 91, 200);
-        string rc = terminalReadUntil("", 82, 200);
+        terminalReadUntil(_NS_TERM_GOTO_REP(999, 999), 91, 100);
+        string rc = terminalReadUntil("", 82, 100);
         printf(_NS_TERM_RES_POS);
         fflush(stdout);
         if(rc.length() < 4) return false;
