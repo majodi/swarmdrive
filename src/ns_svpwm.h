@@ -92,6 +92,7 @@ class Motor {
         void reverseMotor();
         void setStepFreq(int stepFreq);
         void setTorqueAngle(int angle);
+        void setAmplitude(int amplitude);
 
     private:
         //variables
@@ -113,6 +114,7 @@ class Motor {
         uint64_t _timerInterval;
         int _rpm = 0;
         int _torqueAngle = 90;
+        int _amplitude = 50;
 
         //methods
         void createTimer();

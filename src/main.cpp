@@ -59,11 +59,13 @@ using namespace ns_console;
 #define _NS_P_DIRECTION 2
 #define _NS_P_RPM 3
 #define _NS_P_TORQUE_ANGLE 4
+#define _NS_P_AMPLITUDE 5
 
 // defaults
 #define _NS_DEF_STEP_FREQ 100
 #define _NS_DEF_TORQUE_ANGLE 90
 #define _NS_DEF_DIRECTION 1
+#define _NS_DEF_AMPLITUDE 50
 
 #define _NS_POT_PIN ADC1_GPIO34_CHANNEL
 // GPIO_NUM_34
@@ -77,6 +79,7 @@ void consoleRegistration() {
     sendToConsole(_NS_REG_PARAMETER, _NS_P_DIRECTION, _NS_DEF_DIRECTION, "d", "Direction");         // direction parameter
     sendToConsole(_NS_REG_PARAMETER, _NS_P_RPM, 0, "--", "RPM");                                    // rpm parameter
     sendToConsole(_NS_REG_PARAMETER, _NS_P_TORQUE_ANGLE, _NS_DEF_TORQUE_ANGLE, "ta", "Torque A.");  // torque angle parameter
+    sendToConsole(_NS_REG_PARAMETER, _NS_P_AMPLITUDE, _NS_DEF_AMPLITUDE, "a", "Amplitude");         // amplitude parameter
 }
 
 // check if console has command or parameter setting message available
@@ -107,6 +110,9 @@ void checkMessages(Motor &motor) {
             if (consoleMessage.identifier == _NS_P_TORQUE_ANGLE) {                      // step torque angle change
                 motor.setTorqueAngle(consoleMessage.value);                             // set new torque angle
             }
+            if (consoleMessage.identifier == _NS_P_AMPLITUDE) {                         // step torque angle change
+                motor.setAmplitude(consoleMessage.value);                               // set new torque angle
+            }
         }
     }
 }
@@ -132,7 +138,8 @@ void mainTask(void *arg) {
             sendToConsole(_NS_SET_PARAMETER, _NS_P_RPM, RPM);           // update console with new RPM value
             lastRPM = RPM;                                              // remember this last value
         }
-        vTaskDelay(500 / portTICK_PERIOD_MS);                           // repeat twice a second
+        // vTaskDelay(500 / portTICK_PERIOD_MS);                           // repeat twice a second
+        vTaskDelay(1);                           // repeat twice a second
     }
 }
 

@@ -61,8 +61,14 @@ void Motor::setStepFreq(int stepFreq) {
     }
 }
 
+// set torque angle
 void Motor::setTorqueAngle(int angle) {
     _torqueAngle = angle;                                               // set torque angle (angle at which motor is pulled ahead, 90 should be max torque)
+}
+
+// set amplitude
+void Motor::setAmplitude(int amplitude) {
+    _amplitude = amplitude;                                             // set amplitude of the PWM as a percentage, this sets the power/current for the motor
 }
 
 // fill svpwm lookup table
@@ -82,9 +88,9 @@ void Motor::setup_svpwm() {
 void Motor::commutate(int stepRequest) {
     
     int step = stepRequest >= _arraySize ? stepRequest - _arraySize : (stepRequest < 0 ? _arraySize + stepRequest : stepRequest);
-    mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_0, MCPWM_OPR_A, _svpwm[step]);
-    mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_1, MCPWM_OPR_A, _svpwm[step > _phaseShift ? step - _phaseShift : step + _dblPhaseShift]);
-    mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_2, MCPWM_OPR_A, _svpwm[step < _dblPhaseShift ? step + _phaseShift : step - _dblPhaseShift]);
+    mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_0, MCPWM_OPR_A, ((float)_amplitude / 100) * _svpwm[step]);
+    mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_1, MCPWM_OPR_A, ((float)_amplitude / 100) * _svpwm[step > _phaseShift ? step - _phaseShift : step + _dblPhaseShift]);
+    mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_2, MCPWM_OPR_A, ((float)_amplitude / 100) * _svpwm[step < _dblPhaseShift ? step + _phaseShift : step - _dblPhaseShift]);
     _lastStep = step;
 }
 
