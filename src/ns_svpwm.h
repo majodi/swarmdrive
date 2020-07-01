@@ -76,6 +76,9 @@ struct motorConfig {
     int rpsResolution;
     int pwmFreq;
     int stepFreq;
+    int torqueAngle;
+    int amplitude;
+    int moveSteps;
 };
 
 class Motor {
@@ -90,9 +93,11 @@ class Motor {
         void startMotor();
         void stopMotor();
         void reverseMotor();
+        void moveMotor();
         void setStepFreq(int stepFreq);
         void setTorqueAngle(int angle);
         void setAmplitude(int amplitude);
+        void setMoveSteps(int steps);
 
     private:
         //variables
@@ -115,6 +120,9 @@ class Motor {
         int _rpm = 0;
         int _torqueAngle = 90;
         int _amplitude = 50;
+        int _moveSteps = 0;
+        int _moveStepsLeft = 0;
+        bool _moveMode = false;
 
         //methods
         void createTimer();

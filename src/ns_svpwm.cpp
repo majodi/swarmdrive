@@ -19,6 +19,12 @@ Motor::Motor(motorConfig* MC) {
     determineSignalRotationAngleR();                                    // determine motor characteristics (signal rotation repeats itself N-times depending on number of poles)
     createTimer();                                                      // prepare timer (used for exact timing of commutation)
     setStepFreq(MC->stepFreq);                                          // set period for timer to fire
+    setTorqueAngle(MC->torqueAngle);                                    // set torque angle
+    setAmplitude(MC->amplitude);                                        // set amplitude
+    setMoveSteps(MC->moveSteps);                                        // set move steps
+    _rps.resetAngleZero();                                              // reset angle to zero position
+    _angleR = _rps.getAngleR();                                         // get angle after zeroing
+    _lastAngleR = _angleR;                                              // last angle is current
 }
 
 // start motor (_running true)
@@ -39,6 +45,13 @@ void Motor::stopMotor() {
 // set motor direction reversed
 void Motor::reverseMotor() {
     _clockwise = !_clockwise;                                           // reverse speed
+}
+
+// move motor number of steps
+void Motor::moveMotor() {
+    _moveMode = true;
+    _moveStepsLeft = _moveSteps;
+    startMotor();
 }
 
 // get current direction
@@ -69,6 +82,11 @@ void Motor::setTorqueAngle(int angle) {
 // set amplitude
 void Motor::setAmplitude(int amplitude) {
     _amplitude = amplitude;                                             // set amplitude of the PWM as a percentage, this sets the power/current for the motor
+}
+
+// set move steps
+void Motor::setMoveSteps(int steps) {
+    _moveSteps = steps;                                                 // set amplitude of the PWM as a percentage, this sets the power/current for the motor
 }
 
 // fill svpwm lookup table
@@ -188,9 +206,23 @@ void Motor::onTimer(void *arg) {
     int delta = !m->_clockwise ?                                // calculate delta (angle at which motor has moved) - first are we moving CCW?
         (m->_lastAngleR > m->_angleR ? m->_rpsResolution - (m->_lastAngleR - m->_angleR) : m->_angleR - m->_lastAngleR ) :  // angle calculation for CCW (taking into account that rotation can pass zero point)
         (m->_lastAngleR > m->_angleR ? m->_lastAngleR - m->_angleR : m->_rpsResolution - (m->_angleR - m->_lastAngleR));    // angle calculation for CW
+    delta = delta > m->_rpsResolution / 2 ? 0 : delta;          // set delta to zero if we probably went the wrong way
     m->_rpm = (m->_rpm + (m->_stepFreq * 60 * ((float)delta / m->_rpsResolution))) / 2; // scale up movement to calculate RPM (take running average to suppress noise)
     float currentSignalFraction = (float)((m->_rpsResolution - m->_angleR) % m->_signalRotationAngleR) / m->_signalRotationAngleR;      // take modulus to find position within signal rotation
-    if (m->_running) m->commutate((currentSignalFraction * m->_arraySize) + (m->_clockwise ? m->_torqueAngle : -1 * m->_torqueAngle));  // commutate to next goal angle (using torque angle) only when we should be still running (not fired while disengage is called)
+    if (m->_running) {
+        if (m->_moveMode) {
+            m->_moveStepsLeft -= (int)(((float)delta / m->_signalRotationAngleR) * m->_arraySize);
+            if (m->_moveStepsLeft > 0) {
+                m->commutate(m->_moveStepsLeft > m->_torqueAngle ? (currentSignalFraction * m->_arraySize) + (m->_clockwise ? m->_torqueAngle : -1 * m->_torqueAngle) :
+                (currentSignalFraction * m->_arraySize) + (m->_clockwise ? m->_moveStepsLeft : -1 * m->_moveStepsLeft));
+            } else {
+                m->_moveMode = false;
+                m->stopMotor();
+            }
+        } else {
+            m->commutate((currentSignalFraction * m->_arraySize) + (m->_clockwise ? m->_torqueAngle : -1 * m->_torqueAngle));  // commutate to next goal angle (using torque angle) only when we should be still running (not fired while disengage is called)
+        }
+    }
 #ifdef NS_TIMER_DEBUG_PIN
     gpio_set_level(NS_TIMER_DEBUG_PIN, 0);                      // signal low for debugging
 #endif

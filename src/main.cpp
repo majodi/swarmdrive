@@ -53,6 +53,7 @@ using namespace ns_console;
 #define _NS_C_START 1
 #define _NS_C_STOP 2
 #define _NS_C_REVERSE 3
+#define _NS_C_MOVE 4
 
 // console parameters
 #define _NS_P_STEP_FREQ 1
@@ -60,12 +61,14 @@ using namespace ns_console;
 #define _NS_P_RPM 3
 #define _NS_P_TORQUE_ANGLE 4
 #define _NS_P_AMPLITUDE 5
+#define _NS_P_STEPS 6
 
 // defaults
 #define _NS_DEF_STEP_FREQ 100
 #define _NS_DEF_TORQUE_ANGLE 90
 #define _NS_DEF_DIRECTION 1
 #define _NS_DEF_AMPLITUDE 50
+#define _NS_DEF_STEPS 100
 
 #define _NS_POT_PIN ADC1_GPIO34_CHANNEL
 // GPIO_NUM_34
@@ -75,11 +78,13 @@ void consoleRegistration() {
     sendToConsole(_NS_REG_COMMAND, _NS_C_START, 0, "r", "Run Motor");                               // register run command
     sendToConsole(_NS_REG_COMMAND, _NS_C_STOP, 0, "s", "Stop Motor");                               // stop command
     sendToConsole(_NS_REG_COMMAND, _NS_C_REVERSE, 0, "rv", "Reverse");                              // reverse command
+    sendToConsole(_NS_REG_COMMAND, _NS_C_MOVE, 0, "m", "Move Steps");                               // register move steps command
     sendToConsole(_NS_REG_PARAMETER, _NS_P_STEP_FREQ, _NS_DEF_STEP_FREQ, "sf", "Step Freq");        // step frequency parameter
     sendToConsole(_NS_REG_PARAMETER, _NS_P_DIRECTION, _NS_DEF_DIRECTION, "d", "Direction");         // direction parameter
     sendToConsole(_NS_REG_PARAMETER, _NS_P_RPM, 0, "--", "RPM");                                    // rpm parameter
     sendToConsole(_NS_REG_PARAMETER, _NS_P_TORQUE_ANGLE, _NS_DEF_TORQUE_ANGLE, "ta", "Torque A.");  // torque angle parameter
     sendToConsole(_NS_REG_PARAMETER, _NS_P_AMPLITUDE, _NS_DEF_AMPLITUDE, "a", "Amplitude");         // amplitude parameter
+    sendToConsole(_NS_REG_PARAMETER, _NS_P_STEPS, _NS_DEF_STEPS, "s", "Steps");                     // number of steps parameter
 }
 
 // check if console has command or parameter setting message available
@@ -96,6 +101,7 @@ void checkMessages(Motor &motor) {
                 motor.reverseMotor();                                                   // reverse direction
                 sendToConsole(_NS_SET_PARAMETER, _NS_P_DIRECTION, motor.getDirection()); // ask console to let user know (display new state)
             }
+            else if (consoleMessage.identifier == _NS_C_MOVE) motor.moveMotor();        // move motor number of steps
         }
         else if (consoleMessage.messageType == _NS_SET_PARAMETER) {                     // *** if parameter change
             if (consoleMessage.identifier == _NS_P_DIRECTION) {                         // direction change
@@ -112,6 +118,9 @@ void checkMessages(Motor &motor) {
             }
             if (consoleMessage.identifier == _NS_P_AMPLITUDE) {                         // step torque angle change
                 motor.setAmplitude(consoleMessage.value);                               // set new torque angle
+            }
+            if (consoleMessage.identifier == _NS_P_STEPS) {                             // change number of steps for move action
+                motor.setMoveSteps(consoleMessage.value);                               // set new value for move steps
             }
         }
     }
@@ -146,8 +155,8 @@ void mainTask(void *arg) {
 extern "C" void app_main()
 {
     motorConfig MC;                                                     // define motor config
-    // initConsole(_NS_CON_OPTION_NO_UI);                               // optional console without GUI for debugging using printf() statements
-    initConsole();                                                      // init console with GUI
+    initConsole(_NS_CON_OPTION_NO_UI);                               // optional console without GUI for debugging using printf() statements
+    // initConsole();                                                      // init console with GUI
     consoleRegistration();                                              // register commands and parameters
     MC.pin0A         = GPIO_NUM_16;                                     // set pins
     MC.pin0B         = GPIO_NUM_21;
@@ -160,6 +169,9 @@ extern "C" void app_main()
     MC.rpsResolution = 16383;                                           // resolution of RPS (Rotational Position Sensor) to 14 bit = 2^14 - 1
     MC.pwmFreq       = 40000;                                           // pwm frequency (value doubled because of symmetrical PWM) above human hearing level
     MC.stepFreq      = _NS_DEF_STEP_FREQ;                               // set default step frequency (also passed to console)
+    MC.torqueAngle   = _NS_DEF_TORQUE_ANGLE;                            // set default torque angle
+    MC.amplitude     = _NS_DEF_AMPLITUDE;                               // set default amplitude
+    MC.moveSteps     = _NS_DEF_STEPS;                                   // set default move steps
     adc1_config_width(ADC_WIDTH_BIT_12);                                // prepare ADC for potentiometer controlling step frequency
     adc1_config_channel_atten(_NS_POT_PIN, ADC_ATTEN_DB_11);
     xTaskCreatePinnedToCore(mainTask, "mainTask", 8192, &MC, tskIDLE_PRIORITY, NULL, 1);    // start main task
@@ -167,3 +179,11 @@ extern "C" void app_main()
         vTaskDelay(500 / portTICK_PERIOD_MS);
     }
 }
+        // int _stepFreq = 0;
+        // uint64_t _timerInterval;
+        // int _rpm = 0;
+        // int _torqueAngle = 90;
+        // int _amplitude = 50;
+        // int _moveSteps = 0;
+        // int _moveStepsLeft = 0;
+        // bool _moveMode = false;
