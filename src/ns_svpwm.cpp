@@ -47,11 +47,17 @@ void Motor::reverseMotor() {
     _clockwise = !_clockwise;                                           // reverse speed
 }
 
-// move motor number of steps
-void Motor::moveMotor() {
-    _moveMode = true;
-    _moveStepsLeft = _moveSteps;
-    startMotor();
+// move motor number of steps (steps parameter for small adhoc and within signal range number of steps or omitted for moveSteps motor property number of steps)
+void Motor::moveMotor(int steps) {
+    if ((steps == 0) && (_moveSteps)) {                                 // if adhoc (parameter) value is 0 but moveSteps property has value
+        _moveMode = true;                                               // set moveMode true (this will commutate using timer for bigger values, i.e. not bound to small stepsize within signal array range)
+        _moveStepsLeft = _moveSteps;                                    // steps left (to be made)
+        startMotor();                                                   // start motor in this moveMode
+        return;                                                         // return (don't do rest of logic for small adhoc stepping)
+    }
+    if (steps != 0) {                                                   // if we're still here and we have a non-zero steps parameter that means we should move a small (within signal array) step
+        commutate(_lastStep + steps);                                   // so just commutate to that step
+    }
 }
 
 // get current direction
@@ -62,6 +68,11 @@ int Motor::getDirection() {
 // get current RPM
 int Motor::getRPM() {
     return _rpm;                                                        // return RPM
+}
+
+// return running state
+bool Motor::isRunning() {
+    return _running;
 }
 
 // set step frequency (commutation frequency)
@@ -104,12 +115,12 @@ void Motor::setup_svpwm() {
 
 // set motor at signal step
 void Motor::commutate(int stepRequest) {
-    
-    int step = stepRequest >= _arraySize ? stepRequest - _arraySize : (stepRequest < 0 ? _arraySize + stepRequest : stepRequest);
-    mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_0, MCPWM_OPR_A, ((float)_amplitude / 100) * _svpwm[step]);
+    int step = stepRequest >= _arraySize ? stepRequest - _arraySize : (stepRequest < 0 ? _arraySize + stepRequest : stepRequest);   // adjust to signal array boundary
+    if ((step >= _arraySize) || step < 0) return;                                                                                   // leave if that didn't work (request out of range)
+    mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_0, MCPWM_OPR_A, ((float)_amplitude / 100) * _svpwm[step]);                             // set signal values
     mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_1, MCPWM_OPR_A, ((float)_amplitude / 100) * _svpwm[step > _phaseShift ? step - _phaseShift : step + _dblPhaseShift]);
     mcpwm_set_duty(MCPWM_UNIT_0, MCPWM_TIMER_2, MCPWM_OPR_A, ((float)_amplitude / 100) * _svpwm[step < _dblPhaseShift ? step + _phaseShift : step - _dblPhaseShift]);
-    _lastStep = step;
+    _lastStep = step;                                                                                                               // remember last step
 }
 
 // determine initial direction and save value

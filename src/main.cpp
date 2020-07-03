@@ -131,32 +131,51 @@ void mainTask(void *arg) {
     Motor motor((motorConfig *) arg);                                   // create motor instance on this new task thread 
     sendToConsole(_NS_SET_PARAMETER, _NS_P_DIRECTION, motor.getDirection());    // after initialization update console with direction
     int lastPotVal = 0;                                                 // init pot last known POT value
-    int potVal = 0;                                                     // init current POT value
+    int potVal = 0;                                                     // init current raw POT value
+    int potMovement = 0;                                                // init last pot movement
+    int lastPotFreq = 0;                                                // init last pot frequency value
+    int potFreq = 0;                                                    // init current pot frequency value
     int lastRPM = 0;                                                    // init last known RPM value
     int RPM = 0;                                                        // init current PWM value
+    bool engaged = false;                                               // motor coils are in rest at start
+    int64_t lastDisengage = 0;                                          // last time disengaged motor coils
     while(1) {                                                          // forever
         checkMessages(motor);                                           // get console messages (commands or parameter updates) and act upon it
-        potVal = adc1_get_raw(_NS_POT_PIN) / 10;                        // read POT value and divide for lower more acceptable value for frequency
-        if (abs(potVal - lastPotVal) > 10) {                            // if value changed significant enough
-            motor.setStepFreq(potVal);                                  // set POT value as frequency (i.e. speed)
-            sendToConsole(_NS_SET_PARAMETER, _NS_P_STEP_FREQ, potVal);  // update console to show new frequency
-            lastPotVal = potVal;                                        // remember this last value
+        potVal = adc1_get_raw(_NS_POT_PIN);                             // read raw POT value
+        if (motor.isRunning()) {                                        // if running, use pot for speed control
+            potFreq = potVal / 10;                                          // divide for lower more acceptable value for frequency
+            if (abs(potFreq - lastPotFreq) > 10) {                          // if pot frequency value changed significantly enough
+                motor.setStepFreq(potFreq);                                 // set POT value as frequency (i.e. speed)
+                sendToConsole(_NS_SET_PARAMETER, _NS_P_STEP_FREQ, potFreq); // update console to show new frequency
+                lastPotFreq = potFreq;
+            }
+        } else {                                                        // if not running set motor angle with pot
+            potMovement = (potMovement + (potVal - lastPotVal)) / 2;    // pot movement to make (averaged to filter out some pot glitches)
+            if (abs(potMovement) > 15) {                                // if pot value changed significantly enough
+                motor.moveMotor(potMovement);                           // move motor
+                engaged = true;                                         // after a move the coils are left engaged
+            }
         }
+        if (engaged && ((esp_timer_get_time() - lastDisengage) > 500000)) { // if engaged after some time, disengage to avaid overheating
+            motor.disengage();                                          // disengage the coils
+            engaged = false;                                            // reset engage flag
+            lastDisengage = esp_timer_get_time();
+        }
+        lastPotVal = potVal;                                            // remember this last value
         RPM = motor.getRPM();                                           // get current RPM
         if (abs(RPM - lastRPM) > 10) {                                  // if changed enough (filter noise)
             sendToConsole(_NS_SET_PARAMETER, _NS_P_RPM, RPM);           // update console with new RPM value
             lastRPM = RPM;                                              // remember this last value
         }
-        // vTaskDelay(500 / portTICK_PERIOD_MS);                           // repeat twice a second
-        vTaskDelay(1);                           // repeat twice a second
+        vTaskDelay(1);                                                  // keep watch dog happy
     }
 }
 
 extern "C" void app_main()
 {
     motorConfig MC;                                                     // define motor config
-    initConsole(_NS_CON_OPTION_NO_UI);                               // optional console without GUI for debugging using printf() statements
-    // initConsole();                                                      // init console with GUI
+    // initConsole(_NS_CON_OPTION_NO_UI);                               // optional console without GUI for debugging using printf() statements
+    initConsole();                                                      // init console with GUI
     consoleRegistration();                                              // register commands and parameters
     MC.pin0A         = GPIO_NUM_16;                                     // set pins
     MC.pin0B         = GPIO_NUM_21;
@@ -179,11 +198,3 @@ extern "C" void app_main()
         vTaskDelay(500 / portTICK_PERIOD_MS);
     }
 }
-        // int _stepFreq = 0;
-        // uint64_t _timerInterval;
-        // int _rpm = 0;
-        // int _torqueAngle = 90;
-        // int _amplitude = 50;
-        // int _moveSteps = 0;
-        // int _moveStepsLeft = 0;
-        // bool _moveMode = false;

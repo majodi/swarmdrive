@@ -90,10 +90,12 @@ class Motor {
         int getSignalRotationAngle();
         int getDirection();
         int getRPM();
+        bool isRunning();
         void startMotor();
         void stopMotor();
+        void disengage();
         void reverseMotor();
-        void moveMotor();
+        void moveMotor(int steps=0);                           // move motor in steps (steps either as parameter for adhoc movement or else moveSteps is used)
         void setStepFreq(int stepFreq);
         void setTorqueAngle(int angle);
         void setAmplitude(int amplitude);
@@ -130,7 +132,6 @@ class Motor {
         static void onTimer(void *arg);
         void commutate(int step);
         void determineDirection();
-        void disengage();
         void determineSignalRotationAngleR();
         void setup_svpwm();
         void setup_mcpwm_pins(motorConfig* MC);
