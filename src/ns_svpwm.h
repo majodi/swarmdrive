@@ -54,88 +54,115 @@
 
 #include "ns_as5048b.h"
 
-#define MP_PI 3.14159265358979
-#define RAD(a) ((a)*MP_PI)/180
-#define MIN(a,b,c) ((a <= b) && (a <= c) ? a : (b <= a) && (b <= c) ? b : c)
-#define MAX(a,b,c) ((a >= b) && (a >= c) ? a : (b >= a) && (b >= c) ? b : c)
+#include <inttypes.h>
+
+// general macro's and constant defines
+#define MP_PI 3.14159265358979                                                  // PI
+#define RAD(a) ((a)*MP_PI)/180                                                  // RAD(a) macro
+#define MIN(a,b,c) ((a <= b) && (a <= c) ? a : (b <= a) && (b <= c) ? b : c)    // MIN(a,b,c) macro
+#define MAX(a,b,c) ((a >= b) && (a >= c) ? a : (b >= a) && (b >= c) ? b : c)    // MAX(a,b,c) macro
+
+// SR = Signal Resolution, the array size for one full signal turn (360 degree turn). One value per degree should be sufficient (360 values)
+#define SR 360
+// SST = Short Settle Time, uS delay to let motor settle before taking a sensor reading for its position
+#define SST 6000
 
 #ifndef _NS_SVPWM_H_
 #define _NS_SVPWM_H_
 
 // #define _NS_TIMER_DEBUG_PIN GPIO_NUM_33
+// #define _NS_DYNAMIC_DEBUG
 
-struct motorConfig {
-    gpio_num_t rpsPinSDA;
-    gpio_num_t rpsPinSCL;
-    gpio_num_t pin0A;
+struct motorConfig {                                                            // config structure for initializing motor
+    gpio_num_t rpsPinSDA;                                                       // RPS sensor data pin
+    gpio_num_t rpsPinSCL;                                                       // RPS sensor clock pin
+    gpio_num_t pin0A;                                                           // coil pins A = PWM, B = ENABLE
     gpio_num_t pin0B;
     gpio_num_t pin1A;
     gpio_num_t pin1B;
     gpio_num_t pin2A;
     gpio_num_t pin2B;
-    int rpsResolution;
-    int pwmFreq;
-    int stepFreq;
-    int torqueAngle;
-    int amplitude;
-    int moveSteps;
+    int rpsResolution;                                                          // resolution of RPS
+    bool rpsFrontMount;                                                         // orientation of RPS
+    int pwmFreq;                                                                // motor PWM frequency
+    int stepFreq;                                                               // step frequency
+    int torqueAngle;                                                            // torque angle to use
+    int amplitude;                                                              // amplitude percentage
+    int moveSteps;                                                              // steps to move on MoveSteps command
 };
 
 class Motor {
 
     public:
-        Motor(motorConfig* MC);
-        void stopTimer();
-        int getAngle();
-        int getSignalRotationAngle();
-        int getDirection();
-        int getRPM();
+        Motor(motorConfig* MC);                                 // see comments in source
+        bool isInitialized();
         bool isRunning();
         void startMotor();
         void stopMotor();
         void disengage();
-        void reverseMotor();
-        void moveMotor(int steps=0);                           // move motor in steps (steps either as parameter for adhoc movement or else moveSteps is used)
+        void recal();
+        void test();
+        void debugRun();
+        void setDirection(bool clockwise);
+        void reverseMotor(bool onlyPoles = false);
+        void moveMotor(int steps=0);                            // move motor in steps (steps either as parameter for adhoc one-commutate movement or else moveSteps is used)
+        int getDirection();
+        int getRPM();
+        int getAngle();
+        int getSignalRotationAngle();
         void setStepFreq(int stepFreq);
         void setTorqueAngle(int angle);
         void setAmplitude(int amplitude);
         void setMoveSteps(int steps);
 
     private:
+        // debug
+        bool _debugRun = false;
+        int _debug[200];
+        int _di = 0;
+        // quick lookup values to avoid calculations that are used frequently
+        int _phaseShift = SR / 3;                               // 120 degree position (phase shift for 3 coils)
+        int _dblPhaseShift = _phaseShift * 2;                   // double phase shift position
+        int _quarter = SR / 4;                                  // 90 degree position
+        float _SRFactor = SR / 360;                             // factor to calculate angle withing Signal Resolution range
         //variables
-        float _svpwm[360];
-        int _arraySize = sizeof(_svpwm) / sizeof(float);
-        int _rpsResolution;
-        int _phaseShift = _arraySize / 3;
-        int _dblPhaseShift = _phaseShift * 2;
-        bool _clockwise = true;
-        int _signalPosition;
-        bool _running = false;
-        int _signalRotationAngleR;                              // R means Raw angle (i.e. integer number between 0 - RPS resolution representing 0 - 60 degrees)
-        RPS _rps;
-        int _angleR = 0;                                        // _Raw_ angle
+        mcpwm_timer_t _coil0 = MCPWM_TIMER_0;                   // timer for coil 0
+        mcpwm_timer_t _coil1 = MCPWM_TIMER_1;                   // timer for coil 1
+        mcpwm_timer_t _coil2 = MCPWM_TIMER_2;                   // timer for coil 2
+        bool _initialized = false;                              // object finished initializing
+        float _svpwm[SR];                                       // array for holding SVPWM values
+        RPS _rps;                                               // Rptational Position Sensor object
+        bool _rpsFrontMount = false;                            // RPS orientation
+        int _rpsResolution;                                     // RPS resolution
+        bool _clockwise = true;                                 // requested direction
+        bool _running = false;                                  // running state of motor
+        int _signalRotationAngleR;                              // Angle the motor travels with one full signal cycle, R means Raw angle value
+        int _angleR = 0;                                        // _Raw_ angle of motor
         int _lastAngleR = 0;                                    // last _Raw_ angle
-        int _lastStep = 0;
-        esp_timer_handle_t _periodic_timer;
-        int _stepFreq = 0;
-        uint64_t _timerInterval;
-        int _rpm = 0;
-        int _torqueAngle = 90;
-        int _amplitude = 50;
-        int _moveSteps = 0;
-        int _moveStepsLeft = 0;
-        bool _moveMode = false;
+        int _lastStep = 0;                                      // last commutate step within signal array
+        esp_timer_handle_t _periodic_timer;                     // handle of periodic timer
+        int _stepFreq = 0;                                      // step frequency (commutation frequency)
+        uint64_t _timerInterval;                                // time interval corresponding with step frequency
+        int _delta = 0;                                         // average movement delta angle
+        int _noProgressCount = 0;                               // number of times not enough movement
+        int _torqueAngle = 90;                                  // torque angle to use
+        int _torqueSteps = _torqueAngle * _SRFactor;            // torqueSteps corresponding to torqueAngle (avoid frequent calculation)
+        int _amplitude = 50;                                    // amplitude (power) factor
+        int _moveSteps = 0;                                     // steps to move on moveSteps command
+        int _moveStepsLeft = 0;                                 // steps left for current moveSteps execution (used in closed loop variation)
+        bool _moveMode = false;                                 // motor running certain amount of steps due to moveSteps command (used in closed loop variation)
 
         //methods
-        void createTimer();
-        void startTimer(uint64_t interval);
-        static void onTimer(void *arg);
-        void commutate(int step);
-        void determineDirection();
-        void determineSignalRotationAngleR();
-        void setup_svpwm();
         void setup_mcpwm_pins(motorConfig* MC);
         void setup_mcpwm_configuration(int pwmFreq);
+        void setup_svpwm();
+        void createTimer();
+        void startTimer(uint64_t interval);
+        void stopTimer();
+        static void onTimer(void *arg);
+        void home();
+        void commutate(int step);
+        void determineSignalRotationAngleR();
 
 };
 

@@ -14,7 +14,7 @@ This example drives a BLDC motor, it's by no means a perfect implementation but 
 
 Also built-in is a small I2C implementation for communicating with a Rotary Encoder, as this example is meant to be a closed loop implementation for driving the motor. It needs feedback from a sensor. The sensor used for this example is the low cost AS5048B from AMS. The example was tested using a cheap Gimbal (BLDC) motor (AX-2206 80T 11.3 Ohm) which can be found for under $10.
 
-The code was written using the ESP-IDF framework from Espressif because it uses the on-board motor control unit(s). But it can be ported to Arduino in a mixed ESP-IDF/Arduino setup. PlatformIO would be a suitable tool to work with.
+The code was written using the ESP-IDF framework from Espressif because it uses the on-board motor control unit(s). But it can be ported to Arduino in a mixed ESP-IDF/Arduino setup. Also there are other Arduino based libraries available. PlatformIO would be a suitable tool to work with but for simple code experiments the Arduino IDE will do great as well.
 
 The console
 -----------

@@ -17,6 +17,12 @@ void RPS::init(sensorConfig sensorConfig) {
     i2c_driver_install(sensorConfig.i2c_port, I2C_MODE_MASTER, 0, 0, 0);// install
     _chipAddress = sensorConfig.chipAddress;                            // save chip address
     _i2c_port = sensorConfig.i2c_port;                                  // and port
+    _inverted = false;                                                  // initial setting non inverted values
+    if (sensorConfig.rpsFrontMount) {                                   // if sensor mounted at front, readings are equal to observer (looking from the front) 
+        _clockwise = true;                                              // normal CW-incremental sensor readings when motor spins CW (as observed from front)
+    } else {                                                            // if sensor is placed at the back, sensor readings should be inverted
+        _clockwise = false;                                             // signal that sensor is running backward and should be inverted to also give CW-incremental values when motor spins CW
+    }
 }
 
 // Get data-high
@@ -25,13 +31,24 @@ int RPS::getDataH() {return _data_h;}                                   // retur
 // Get data-low
 int RPS::getDataL() {return _data_l;}                                   // return data-low (when needed for debugging)
 
+// Invert readings
+// void RPS::invertReadings() {_inverted = true;}                          // invert readings, readings are incremental the other way around
+void RPS::invertReadings() {_inverted = !_inverted;}                          // invert readings, readings are incremental the other way around
+
+// Get Inverted state
+bool RPS::isInverted() {return _inverted;}                              // get current inverted state
+
 // Get angle RAW
 int RPS::getAngleR() {
     int ret = readAngle();                                              // read RAW angle value
     if (ret == ESP_OK) {                                                // read succeeded?
         uint16_t angleVal = _data_h << 6;                               // shift high bits
         angleVal += (_data_l & 0x3F);                                   // add low bits
-        return angleVal;                                                // return angle value
+        if (_clockwise) {                                                   // if sensor mounted at front-side, normal readings (CW-incremental)
+            return _inverted ? AS5048B_RESOLUTION - angleVal : angleVal;    // but if inverted by request (for positive angles on CCW spin), invert readings
+        } else {                                                            // if sensor mounted at back-side, inverted readings (CCW-incremental)
+            return _inverted ? angleVal : AS5048B_RESOLUTION - angleVal;    // but if inverted by request (for positive angles on CCW spin), invert inverted readings (=normal readings again)
+        }
     } else {
         return ret > 0 ? -1 * ret : ret;                                // or return error (negative value)
     }

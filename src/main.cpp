@@ -54,6 +54,9 @@ using namespace ns_console;
 #define _NS_C_STOP 2
 #define _NS_C_REVERSE 3
 #define _NS_C_MOVE 4
+#define _NS_C_DEBUG 6
+#define _NS_C_TEST 7
+#define _NS_C_RECAL 8
 
 // console parameters
 #define _NS_P_STEP_FREQ 1
@@ -68,23 +71,26 @@ using namespace ns_console;
 #define _NS_DEF_TORQUE_ANGLE 90
 #define _NS_DEF_DIRECTION 1
 #define _NS_DEF_AMPLITUDE 50
-#define _NS_DEF_STEPS 100
+#define _NS_DEF_STEPS 30
 
 #define _NS_POT_PIN ADC1_GPIO34_CHANNEL
 // GPIO_NUM_34
 
 // register console commands/parameters
 void consoleRegistration() {
+    sendToConsole(_NS_REG_COMMAND, _NS_C_RECAL, 0, "rc", "recal");                                  // register recal command
+    sendToConsole(_NS_REG_COMMAND, _NS_C_TEST, 0, "t", "test");                                     // register test command
+    sendToConsole(_NS_REG_COMMAND, _NS_C_DEBUG, 0, "d", "debugRun");                                // register debugRun command
     sendToConsole(_NS_REG_COMMAND, _NS_C_START, 0, "r", "Run Motor");                               // register run command
     sendToConsole(_NS_REG_COMMAND, _NS_C_STOP, 0, "s", "Stop Motor");                               // stop command
     sendToConsole(_NS_REG_COMMAND, _NS_C_REVERSE, 0, "rv", "Reverse");                              // reverse command
-    sendToConsole(_NS_REG_COMMAND, _NS_C_MOVE, 0, "m", "Move Steps");                               // register move steps command
+    sendToConsole(_NS_REG_COMMAND, _NS_C_MOVE, 0, "m", "Move Steps");                               // register move steps command (timer mode)
     sendToConsole(_NS_REG_PARAMETER, _NS_P_STEP_FREQ, _NS_DEF_STEP_FREQ, "sf", "Step Freq");        // step frequency parameter
     sendToConsole(_NS_REG_PARAMETER, _NS_P_DIRECTION, _NS_DEF_DIRECTION, "d", "Direction");         // direction parameter
     sendToConsole(_NS_REG_PARAMETER, _NS_P_RPM, 0, "--", "RPM");                                    // rpm parameter
     sendToConsole(_NS_REG_PARAMETER, _NS_P_TORQUE_ANGLE, _NS_DEF_TORQUE_ANGLE, "ta", "Torque A.");  // torque angle parameter
     sendToConsole(_NS_REG_PARAMETER, _NS_P_AMPLITUDE, _NS_DEF_AMPLITUDE, "a", "Amplitude");         // amplitude parameter
-    sendToConsole(_NS_REG_PARAMETER, _NS_P_STEPS, _NS_DEF_STEPS, "s", "Steps");                     // number of steps parameter
+    sendToConsole(_NS_REG_PARAMETER, _NS_P_STEPS, _NS_DEF_STEPS, "ms", "Steps");                    // number of steps parameter
 }
 
 // check if console has command or parameter setting message available
@@ -93,6 +99,9 @@ void checkMessages(Motor &motor) {
     if (consoleMessage.messageType != 0) {                                              // if known message type
         if (consoleMessage.messageType == _NS_COMMAND) {                                // *** if command
             if (consoleMessage.identifier == _NS_C_START) motor.startMotor();           // and command is START then start motor
+            if (consoleMessage.identifier == _NS_C_TEST) motor.test();                  // run test
+            if (consoleMessage.identifier == _NS_C_RECAL) motor.recal();                // run test
+            if (consoleMessage.identifier == _NS_C_DEBUG) motor.debugRun();             // turn on debug run
             else if (consoleMessage.identifier == _NS_C_STOP) {                         // if STOP
                 motor.stopMotor();                                                      // stop motor
                 sendToConsole(_NS_SET_PARAMETER, _NS_P_RPM, 0);                         // ask console to set RPM to zero
@@ -101,7 +110,7 @@ void checkMessages(Motor &motor) {
                 motor.reverseMotor();                                                   // reverse direction
                 sendToConsole(_NS_SET_PARAMETER, _NS_P_DIRECTION, motor.getDirection()); // ask console to let user know (display new state)
             }
-            else if (consoleMessage.identifier == _NS_C_MOVE) motor.moveMotor();        // move motor number of steps
+            else if (consoleMessage.identifier == _NS_C_MOVE) motor.moveMotor();        // move motor number of steps (timer mode)
         }
         else if (consoleMessage.messageType == _NS_SET_PARAMETER) {                     // *** if parameter change
             if (consoleMessage.identifier == _NS_P_DIRECTION) {                         // direction change
@@ -141,7 +150,7 @@ void mainTask(void *arg) {
     int64_t lastDisengage = 0;                                          // last time disengaged motor coils
     while(1) {                                                          // forever
         checkMessages(motor);                                           // get console messages (commands or parameter updates) and act upon it
-        potVal = adc1_get_raw(_NS_POT_PIN);                             // read raw POT value
+        if (motor.isInitialized()) potVal = adc1_get_raw(_NS_POT_PIN);  // read raw POT value (but only when motor is initialized else turning can interfere with initialization)
         if (motor.isRunning()) {                                        // if running, use pot for speed control
             potFreq = potVal / 10;                                          // divide for lower more acceptable value for frequency
             if (abs(potFreq - lastPotFreq) > 10) {                          // if pot frequency value changed significantly enough
@@ -153,17 +162,17 @@ void mainTask(void *arg) {
             potMovement = (potMovement + (potVal - lastPotVal)) / 2;    // pot movement to make (averaged to filter out some pot glitches)
             if (abs(potMovement) > 15) {                                // if pot value changed significantly enough
                 motor.moveMotor(potMovement);                           // move motor
-                engaged = true;                                         // after a move the coils are left engaged
+                engaged = true;                                         // after a move the coils are left engaged, use bool to track this
             }
         }
-        if (engaged && ((esp_timer_get_time() - lastDisengage) > 500000)) { // if engaged after some time, disengage to avaid overheating
+        if (engaged && ((esp_timer_get_time() - lastDisengage) > 500000)) { // if engaged after some time, disengage to avoid overheating
             motor.disengage();                                          // disengage the coils
             engaged = false;                                            // reset engage flag
             lastDisengage = esp_timer_get_time();
         }
         lastPotVal = potVal;                                            // remember this last value
         RPM = motor.getRPM();                                           // get current RPM
-        if (abs(RPM - lastRPM) > 10) {                                  // if changed enough (filter noise)
+        if (abs(RPM - lastRPM) > 100) {                                  // if changed enough (filter noise)
             sendToConsole(_NS_SET_PARAMETER, _NS_P_RPM, RPM);           // update console with new RPM value
             lastRPM = RPM;                                              // remember this last value
         }
@@ -174,7 +183,7 @@ void mainTask(void *arg) {
 extern "C" void app_main()
 {
     motorConfig MC;                                                     // define motor config
-    // initConsole(_NS_CON_OPTION_NO_UI);                               // optional console without GUI for debugging using printf() statements
+    // initConsole(_NS_CON_OPTION_NO_UI);                                  // optional console without GUI for debugging using printf() statements
     initConsole();                                                      // init console with GUI
     consoleRegistration();                                              // register commands and parameters
     MC.pin0A         = GPIO_NUM_16;                                     // set pins
@@ -185,8 +194,9 @@ extern "C" void app_main()
     MC.pin2B         = GPIO_NUM_23;
     MC.rpsPinSDA     = GPIO_NUM_32;
     MC.rpsPinSCL     = GPIO_NUM_33;
-    MC.rpsResolution = 16383;                                           // resolution of RPS (Rotational Position Sensor) to 14 bit = 2^14 - 1
-    MC.pwmFreq       = 40000;                                           // pwm frequency (value doubled because of symmetrical PWM) above human hearing level
+    MC.rpsResolution = AS5048B_RESOLUTION;                              // resolution of RPS (Rotational Position Sensor) to 14 bit = 2^14 - 1
+    MC.rpsFrontMount = false;                                           // senser mounted on the back of the motor
+    MC.pwmFreq       = 20000;                                           // pwm frequency above human hearing level
     MC.stepFreq      = _NS_DEF_STEP_FREQ;                               // set default step frequency (also passed to console)
     MC.torqueAngle   = _NS_DEF_TORQUE_ANGLE;                            // set default torque angle
     MC.amplitude     = _NS_DEF_AMPLITUDE;                               // set default amplitude

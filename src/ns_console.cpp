@@ -596,8 +596,8 @@ namespace ns_console {
 				printf("Up/Dwn arrow for command history.\n");
 			}
 		}
-		toConsoleMessageQ = xQueueCreate(10, sizeof( consoleMessageStruct ) );
-		fromConsoleMessageQ = xQueueCreate(10, sizeof( consoleMessageStruct ) );
+		toConsoleMessageQ = xQueueCreate(20, sizeof( consoleMessageStruct ) );
+		fromConsoleMessageQ = xQueueCreate(20, sizeof( consoleMessageStruct ) );
 		xTaskCreatePinnedToCore(consoleTask, "consoleTask", 4096, NULL, tskIDLE_PRIORITY, NULL, 0);
 	}
 

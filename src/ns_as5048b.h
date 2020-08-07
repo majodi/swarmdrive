@@ -45,6 +45,7 @@
 #ifndef _NS_AS5048B_H_
 #define _NS_AS5048B_H_
 
+// I2C
 #define WRITE_BIT I2C_MASTER_WRITE              /*!< I2C master write */
 #define READ_BIT I2C_MASTER_READ                /*!< I2C master read */
 #define ACK_CHECK_EN 0x1                        /*!< I2C master will check ack from slave*/
@@ -56,6 +57,9 @@
 #define ANGLE_REG 0xFE
 #define ZERO_REG 0x16
 
+// constants
+#define AS5048B_RESOLUTION 16384                // 14 bit = 2^14
+
 struct sensorConfig {
     sensorConfig() : i2c_frequency(400000), i2c_port(I2C_NUM_0), chipAddress(0x40) {}
     gpio_num_t i2c_gpio_sda;
@@ -63,6 +67,7 @@ struct sensorConfig {
     int i2c_frequency;
     i2c_port_t i2c_port;
     uint8_t chipAddress;
+    bool rpsFrontMount;
 };
 
 class RPS {
@@ -73,6 +78,8 @@ class RPS {
 
         void        init(sensorConfig sensorConfig);
         int         resetAngleZero();
+        void        invertReadings();
+        bool        isInverted();
         int         getAngleR();
         int         getDataH();
         int         getDataL();
@@ -80,6 +87,8 @@ class RPS {
     private:
 
         uint8_t     _chipAddress;
+        bool        _clockwise;
+        bool        _inverted;
         i2c_port_t  _i2c_port;
         double      _lastAngle;
         uint8_t     _data_h, _data_l;
