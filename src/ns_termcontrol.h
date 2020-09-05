@@ -77,6 +77,7 @@ namespace ns_termcontrol {
     extern int termCols;
     void initTerminal(bool clear);
     void disableCursorMovement();
+    void enableCursorMovement();
     void setBrowseArea(int fromLine, int toLine);
     void setCursorPosition(int row, int col);
     void drawHorizontal(char startSymbol, char endSymbol, char midSymbol, std::string title, int totalLength);

@@ -59,6 +59,40 @@ namespace ns_console {
 
 	/**************************************************************************/
 	/*!
+		@brief  initialize the screen, if screen at least 14 rows and 24 cols
+				use GUI else simple CLI
+
+		@params[in]
+					none
+		@returns
+					none
+	*/
+	/**************************************************************************/
+	static void initScreen() {
+		initTerminal(true);
+		if(termRows >= 14 && termCols >= 24) guiMode = true;
+		if(guiMode) {
+			drawRectangle(1, 1, termRows, termCols, "Commands");
+			setCursorPosition(1 + commandLines + 1, 0);
+			drawHorizontal(_NS_TERM_DRAW_T_LEFT, _NS_TERM_DRAW_T_RIGHT, _NS_TERM_DRAW_HOR, "Parameters", termCols);
+			setCursorPosition(1 + commandLines + 1 + parameterLines + 1, 0);
+			drawHorizontal(_NS_TERM_DRAW_T_LEFT, _NS_TERM_DRAW_T_RIGHT, _NS_TERM_DRAW_HOR, "Log", termCols);
+			setCursorPosition(termRows - 2, 0);
+			drawHorizontal(_NS_TERM_DRAW_T_LEFT, _NS_TERM_DRAW_T_RIGHT, _NS_TERM_DRAW_HOR, "Command", termCols);
+			setBrowseArea(1 + commandLines + 1 + parameterLines + 1 + 1, termRows - 3);
+			logToConsole("Console started in GUI mode.");
+			logToConsole("Up/Dwn arrow for command history.");
+			setCursorPosition(termRows - 1, 2);
+		} else {
+			printf("Console started in -non- GUI mode.\n");
+			printf("Use command ci for console info.\n");
+			printf("Use command ti for task info.\n");
+			printf("Up/Dwn arrow for command history.\n");
+		}
+	}
+
+	/**************************************************************************/
+	/*!
 		@brief  add new item to command/parameter array
 				
 		@params[in]
@@ -346,13 +380,26 @@ namespace ns_console {
 				if (commandShortcut == "re") {
 					esp_restart();
 				}
-			} 
+				if (commandShortcut == "gui") {
+					enableCursorMovement();
+					noUI = false;
+					guiMode = true;
+					initScreen();
+					refresh = true;
+				}
+			} else {
+				if (commandShortcut == "nogui") {
+					noUI = true;
+					guiMode = false;
+					initTerminal(true);
+					disableCursorMovement();
+				}
+			}
 			auto it = find_if(commandArray.begin(), commandArray.end(), [&](const consoleItemStruct & item) {return item.shortcut == commandShortcut;});
 			if(it != commandArray.end()) {
 				logToConsole("Send command " + commandArray[it - commandArray.begin()].hrName);
 				sendFromConsole(_NS_COMMAND, commandArray[it - commandArray.begin()].identifier, 0, "", "");
 			}
-
 		}
 		commandLine = "";
 	}
@@ -537,40 +584,6 @@ namespace ns_console {
 
 	/**************************************************************************/
 	/*!
-		@brief  initialize the screen, if screen at least 14 rows and 24 cols
-				use GUI else simple CLI
-
-		@params[in]
-					none
-		@returns
-					none
-	*/
-	/**************************************************************************/
-	static void initScreen() {
-		initTerminal(true);
-		if(termRows >= 14 && termCols >= 24) guiMode = true;
-		if(guiMode) {
-			drawRectangle(1, 1, termRows, termCols, "Commands");
-			setCursorPosition(1 + commandLines + 1, 0);
-			drawHorizontal(_NS_TERM_DRAW_T_LEFT, _NS_TERM_DRAW_T_RIGHT, _NS_TERM_DRAW_HOR, "Parameters", termCols);
-			setCursorPosition(1 + commandLines + 1 + parameterLines + 1, 0);
-			drawHorizontal(_NS_TERM_DRAW_T_LEFT, _NS_TERM_DRAW_T_RIGHT, _NS_TERM_DRAW_HOR, "Log", termCols);
-			setCursorPosition(termRows - 2, 0);
-			drawHorizontal(_NS_TERM_DRAW_T_LEFT, _NS_TERM_DRAW_T_RIGHT, _NS_TERM_DRAW_HOR, "Command", termCols);
-			setBrowseArea(1 + commandLines + 1 + parameterLines + 1 + 1, termRows - 3);
-			logToConsole("Console started in GUI mode.");
-			logToConsole("Up/Dwn arrow for command history.");
-			setCursorPosition(termRows - 1, 2);
-		} else {
-			printf("Console started in -non- GUI mode.\n");
-			printf("Use command ci for console info.\n");
-			printf("Use command ti for task info.\n");
-			printf("Up/Dwn arrow for command history.\n");
-		}
-	}
-
-	/**************************************************************************/
-	/*!
 		@brief  initialize console
 
 		@params[in]
@@ -584,21 +597,21 @@ namespace ns_console {
 	void initConsole(int consoleOption) {
 		noIO = consoleOption == _NS_CON_OPTION_NO_IO ? true : false;
 		noUI = consoleOption == _NS_CON_OPTION_NO_UI ? true : false;
-		if (consoleOption == 0) initScreen();
+		if (consoleOption == 0) initScreen();								// GUI mode? do init screen
 		else {
-			disableCursorMovement();
-			if (noIO) {
-				printf("Console started in forced non I/O mode.\n");
-			} else if (noUI) {
-				printf("Console started in forced non GUI mode.\n");
-				printf("Use command ci for console info.\n");
+			disableCursorMovement();										// else disable cursor movement
+			if (noIO) {														// if noIO set
+				printf("Console started in forced non I/O mode.\n");		// let user know
+			} else if (noUI) {												// if noUI set
+				printf("Console started in forced non GUI mode.\n");		// let user know
+				printf("Use command ci for console info.\n");				// and give info on usage
 				printf("Use command ti for task info.\n");
 				printf("Up/Dwn arrow for command history.\n");
 			}
 		}
-		toConsoleMessageQ = xQueueCreate(20, sizeof( consoleMessageStruct ) );
-		fromConsoleMessageQ = xQueueCreate(20, sizeof( consoleMessageStruct ) );
-		xTaskCreatePinnedToCore(consoleTask, "consoleTask", 4096, NULL, tskIDLE_PRIORITY, NULL, 0);
+		toConsoleMessageQ = xQueueCreate(20, sizeof( consoleMessageStruct ) );		// console receiveQ
+		fromConsoleMessageQ = xQueueCreate(20, sizeof( consoleMessageStruct ) );	// console sendQ
+		xTaskCreatePinnedToCore(consoleTask, "consoleTask", 4096, NULL, tskIDLE_PRIORITY, NULL, 0);	// start console task
 	}
 
 	/**************************************************************************/

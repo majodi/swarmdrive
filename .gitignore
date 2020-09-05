@@ -5,3 +5,6 @@ documents
 include
 lib
 test
+sdkconfig.old
+.travis.yml
+src/buCMakeLists.butxt

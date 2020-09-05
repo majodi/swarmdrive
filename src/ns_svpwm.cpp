@@ -149,15 +149,14 @@ void Motor::reverseMotor(bool onlyPoles) {
 // no steps parameter given: move will use _moveSteps property to make a multi commutate movement using the timer
 // steps parameter given: move will use steps parameter to make small (one commutate) move within range of signal array without using the timer
 void Motor::moveMotor(int steps) {
-    if ((steps == 0) && (_moveSteps)) {                                 // if adhoc (parameter) value is 0 but moveSteps property has value
+    int stepsToMove = steps == 0 ? _moveSteps : steps;                  // if steps parameter used then take steps else use _moveSteps setting
+    if (stepsToMove > _torqueSteps) {                                   // if move more than one torque movement
         _moveMode = true;                                               // set moveMode true (this will commutate using timer for bigger values, i.e. not bound to small stepsize within signal array range)
         _moveStepsLeft = _moveSteps;                                    // steps left (still to be made)
         _lastAngleR = _rps.getAngleR();
         startMotor();                                                   // start motor in this moveMode
-        return;                                                         // return (don't do rest of logic for small adhoc stepping)
-    }
-    if (steps != 0) {                                                   // if we're still here and we have a non-zero steps parameter that means we should move a small (within signal array) step
-        commutate(_lastStep + steps);                                   // so just commutate to that step
+    } else {
+        commutate(_lastStep + stepsToMove);                             // make small move
     }
 }
 

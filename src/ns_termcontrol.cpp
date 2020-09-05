@@ -90,6 +90,21 @@ namespace ns_termcontrol {
 
     /**************************************************************************/
     /*!
+        @brief  enable cursor movement, repositioning allowed in
+                GUI mode
+
+        @params[in]
+                    none
+        @returns
+                    none
+    */
+    /**************************************************************************/
+    void enableCursorMovement() {
+        cursorMovement = true;
+    }
+
+    /**************************************************************************/
+    /*!
         @brief  set browse area (area that will scroll on newline)
 
         @params[in]

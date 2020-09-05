@@ -73,8 +73,8 @@ using namespace ns_console;
 #define _NS_DEF_AMPLITUDE 50
 #define _NS_DEF_STEPS 30
 
-#define _NS_POT_PIN ADC1_GPIO34_CHANNEL
-// GPIO_NUM_34
+// if you define a POT pin, be sure to connect a potentiometer (else value is floating)
+// #define _NS_POT_PIN ADC1_GPIO34_CHANNEL                              // GPIO_NUM_34
 
 // register console commands/parameters
 void consoleRegistration() {
@@ -139,17 +139,21 @@ void checkMessages(Motor &motor) {
 void mainTask(void *arg) {
     Motor motor((motorConfig *) arg);                                   // create motor instance on this new task thread 
     sendToConsole(_NS_SET_PARAMETER, _NS_P_DIRECTION, motor.getDirection());    // after initialization update console with direction
+#ifdef _NS_POT_PIN
     int lastPotVal = 0;                                                 // init pot last known POT value
     int potVal = 0;                                                     // init current raw POT value
     int potMovement = 0;                                                // init last pot movement
     int lastPotFreq = 0;                                                // init last pot frequency value
     int potFreq = 0;                                                    // init current pot frequency value
+#endif
     int lastRPM = 0;                                                    // init last known RPM value
     int RPM = 0;                                                        // init current PWM value
     bool engaged = false;                                               // motor coils are in rest at start
     int64_t lastDisengage = 0;                                          // last time disengaged motor coils
     while(1) {                                                          // forever
+        // printf("angle: %d\n", motor.getAngle());
         checkMessages(motor);                                           // get console messages (commands or parameter updates) and act upon it
+#ifdef _NS_POT_PIN
         if (motor.isInitialized()) potVal = adc1_get_raw(_NS_POT_PIN);  // read raw POT value (but only when motor is initialized else turning can interfere with initialization)
         if (motor.isRunning()) {                                        // if running, use pot for speed control
             potFreq = potVal / 10;                                          // divide for lower more acceptable value for frequency
@@ -165,12 +169,13 @@ void mainTask(void *arg) {
                 engaged = true;                                         // after a move the coils are left engaged, use bool to track this
             }
         }
+        lastPotVal = potVal;                                            // remember this last value
+#endif
         if (engaged && ((esp_timer_get_time() - lastDisengage) > 500000)) { // if engaged after some time, disengage to avoid overheating
             motor.disengage();                                          // disengage the coils
             engaged = false;                                            // reset engage flag
             lastDisengage = esp_timer_get_time();
         }
-        lastPotVal = potVal;                                            // remember this last value
         RPM = motor.getRPM();                                           // get current RPM
         if (abs(RPM - lastRPM) > 100) {                                  // if changed enough (filter noise)
             sendToConsole(_NS_SET_PARAMETER, _NS_P_RPM, RPM);           // update console with new RPM value
@@ -183,8 +188,8 @@ void mainTask(void *arg) {
 extern "C" void app_main()
 {
     motorConfig MC;                                                     // define motor config
-    // initConsole(_NS_CON_OPTION_NO_UI);                                  // optional console without GUI for debugging using printf() statements
-    initConsole();                                                      // init console with GUI
+    initConsole(_NS_CON_OPTION_NO_UI);                                  // optional console without GUI for debugging using printf() statements
+    // initConsole();                                                      // init console with GUI
     consoleRegistration();                                              // register commands and parameters
     MC.pin0A         = GPIO_NUM_16;                                     // set pins
     MC.pin0B         = GPIO_NUM_21;
@@ -201,8 +206,10 @@ extern "C" void app_main()
     MC.torqueAngle   = _NS_DEF_TORQUE_ANGLE;                            // set default torque angle
     MC.amplitude     = _NS_DEF_AMPLITUDE;                               // set default amplitude
     MC.moveSteps     = _NS_DEF_STEPS;                                   // set default move steps
+#ifdef _NS_POT_PIN 
     adc1_config_width(ADC_WIDTH_BIT_12);                                // prepare ADC for potentiometer controlling step frequency
     adc1_config_channel_atten(_NS_POT_PIN, ADC_ATTEN_DB_11);
+#endif
     xTaskCreatePinnedToCore(mainTask, "mainTask", 8192, &MC, tskIDLE_PRIORITY, NULL, 1);    // start main task
     while(1) {
         vTaskDelay(500 / portTICK_PERIOD_MS);
