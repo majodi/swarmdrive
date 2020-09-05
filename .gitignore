@@ -8,3 +8,4 @@ test
 sdkconfig.old
 .travis.yml
 src/buCMakeLists.butxt
+.DS_Store
