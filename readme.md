@@ -37,7 +37,7 @@ On Windows the typical console window is dumb and does not support any escapes. 
 General Remarks
 ---------------
 
-During the time of this writing (in the now current ESP-IDF version) some driver defenitions used for the MCPWM module are missing. See https://github.com/espressif/esp-idf/issues/5429 for now these have to added in MCPWM.h which, most likely, can be found at ~/.platformio/packages/framework-espidf/components/driver/include/driver (where "~" signifies your user directory).
+During the time of this writing (in the now current ESP-IDF version) some driver defenitions used for the MCPWM module are missing. See https://github.com/espressif/esp-idf/issues/5429 for now these have to added in MCPWM.h which, most likely, can be found at \~/.platformio/packages/framework-espidf/components/driver/include/driver (where "\~" signifies your user directory).
 
 Original ===>
 
