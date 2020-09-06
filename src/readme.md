@@ -41,7 +41,7 @@ During the time of this writing (in the now current ESP-IDF version) some driver
 
 Original ===>
 
-'''
+```
 /**
  * @brief MCPWM select sync signal input
  */
@@ -50,11 +50,11 @@ typedef enum {
     MCPWM_SELECT_SYNC1,      /*!<Select SYNC1 as input*/
     MCPWM_SELECT_SYNC2,      /*!<Select SYNC2 as input*/
 } mcpwm_sync_signal_t;
-'''
+```
 
 Changed ===>
 
-'''
+```
 /**
  * @brief MCPWM select sync signal input
  */
@@ -66,7 +66,7 @@ typedef enum {
     MCPWM_SELECT_SYNC1,      /*!<Select SYNC1 as input*/
     MCPWM_SELECT_SYNC2,      /*!<Select SYNC2 as input*/
 } mcpwm_sync_signal_t;
-'''
+```
 
 vTaskList undefined
 -------------------
@@ -75,13 +75,13 @@ The code uses vTaskList, it has to be enabled in the sdkconfig (or you can comme
 vTaskList use "platformio run -t menuconfig" (if you're using platformio) to enable it. Before using this command
 make sure your screen is big enough or else you will get errors. Then enable:
 
-'''
+```
 Component config --->
 FreeRTOS --->
 [*] Enable FreeRTOS trace facility
 [*]   Enable FreeRTOS stats formatting functions (NEW)
 
 exit/save
-'''
+```
 
 When more information is available on the release of the SwarmDrive Development Board it will be posted here.
