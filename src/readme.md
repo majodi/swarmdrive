@@ -1,7 +1,7 @@
 SwarmDrive BLDC Example
 =======================
 
-This repo contains a (first) well documented example intended to be used for the SwarmDrive motor driver board. SwarmDrive is currently in development and this repo will be updated when it will be released.
+This repo contains a (first) well documented example intended to be used for the SwarmDrive motor driver board.
 
 SwarmDrive is a motor driver (development) board intended for learning and experimenting with electric motors. It's an approachable mechatronics platform for users who want to learn and start experimenting with (small) electric motors and BLDC motors in particular. The board contains a basic motor driver setup together with a powerful microcontroller (ESP32) and USB connectivity. It enables the user to learn about different commutation algorithms and all other aspects of electric (BLDC) motors in a convenient way. The _Swarm_ aspect is hinting upon the vast communication possibilities of the ESP32 such as bluetooth or wifi which enables the board or motor to communicate with other boards/motors. This allows for Swarm implementations or just plain remote control of the board/motors.
 
@@ -37,7 +37,9 @@ On Windows the typical console window is dumb and does not support any escapes. 
 General Remarks
 ---------------
 
-During the time of this writing (in the now current ESP-IDF version) some driver defenitions used for the MCPWM module are missing. See https://github.com/espressif/esp-idf/issues/5429 for now these have to added in MCPWM.h which, most likely, can be found at \~/.platformio/packages/framework-espidf/components/driver/include/driver (where "\~" signifies your user directory).
+During the time of this writing (in the now current ESP-IDF version) some driver defenitions used for the MCPWM module are missing. See https://github.com/espressif/esp-idf/issues/5429 for now these have to added in MCPWM.h which, most likely, can be found at (homedir)/.platformio/packages/framework-espidf/components/driver/include/driver.
+
+** EDIT: I noticed that the type definition moved to (homedir)/.platformio/packages/framework-espidf/components/soc/include/hal/mcpwm_types.h. So for newer versions of esp-idf look for it there.
 
 Original ===>
 
