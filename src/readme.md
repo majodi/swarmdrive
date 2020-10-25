@@ -37,7 +37,7 @@ On Windows the typical console window is dumb and does not support any escapes. 
 General Remarks
 ---------------
 
-During the time of this writing (in the now current ESP-IDF version) some driver defenitions used for the MCPWM module are missing. See https://github.com/espressif/esp-idf/issues/5429 for now these have to added in MCPWM.h which, most likely, can be found at (homedir)/.platformio/packages/framework-espidf/components/driver/include/driver.
+During the time of this writing (in the now current ESP-IDF version) some driver defenitions used for the MCPWM module are missing. See https://github.com/espressif/esp-idf/issues/5429 for now these have to be added in MCPWM.h which, most likely, can be found at (homedir)/.platformio/packages/framework-espidf/components/driver/include/driver.
 
 ** EDIT: I noticed that the type definition moved to (homedir)/.platformio/packages/framework-espidf/components/soc/include/hal/mcpwm_types.h. So for newer versions of esp-idf look for it there.
 

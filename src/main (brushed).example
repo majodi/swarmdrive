@@ -1,0 +1,155 @@
+/**************************************************************************/
+/*!
+    @file     main.cpp (brushed DC motor(s) Example) - *** rename to main.cpp ***
+    @author   NickStick BV
+
+    @section  HISTORY
+
+    v0.0 - Start of work
+
+    Example using two brushed motors using the ns_bdc class. This code uses the ns_console library
+    for UI purpose.
+
+    @section LICENSE
+
+    Software License Agreement (BSD License)
+
+    Copyright (c) 2020, NickStick BV
+    All rights reserved.
+
+    Redistribution and use in source and binary forms, with or without
+    modification, are permitted provided that the following conditions are met:
+    1. Redistributions of source code must retain the above copyright
+    notice, this list of conditions and the following disclaimer.
+    2. Redistributions in binary form must reproduce the above copyright
+    notice, this list of conditions and the following disclaimer in the
+    documentation and/or other materials provided with the distribution.
+    3. Neither the name of the copyright holders nor the
+    names of its contributors may be used to endorse or promote products
+    derived from this software without specific prior written permission.
+
+    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ''AS IS'' AND ANY
+    EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+    WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+    DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY
+    DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+    (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+    ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+    (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+    SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*/
+/**************************************************************************/
+#include <Arduino.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include <driver/adc.h>
+#include "ns_console.h"
+#include "ns_bdc.h"
+
+using namespace ns_console;
+
+// console commands
+#define _NS_C_FORWARD 1
+#define _NS_C_STOP 2
+#define _NS_C_REVERSE 3
+#define _NS_C_RIGHT 4
+#define _NS_C_LEFT 5
+
+// console parameters
+#define _NS_P_HB0 1
+#define _NS_P_HB1 2
+#define _NS_P_HB2 3
+#define _NS_P_PL 4
+
+// defaults
+
+// if you define a POT pin, be sure to connect a potentiometer (else value is floating)
+// #define _NS_POT_PIN ADC1_GPIO34_CHANNEL                              // GPIO_NUM_34
+
+// register console commands/parameters
+void consoleRegistration() {
+    sendToConsole(_NS_REG_COMMAND, _NS_C_FORWARD, 0, "f", "forward");                   // forward
+    sendToConsole(_NS_REG_COMMAND, _NS_C_STOP, 0, "s", "stop");                         // stop
+    sendToConsole(_NS_REG_COMMAND, _NS_C_REVERSE, 0, "rv", "reverse");                  // reverse
+    sendToConsole(_NS_REG_COMMAND, _NS_C_RIGHT, 0, "r", "right");                       // right
+    sendToConsole(_NS_REG_COMMAND, _NS_C_LEFT, 0, "l", "left");                         // left
+    sendToConsole(_NS_REG_PARAMETER, _NS_P_HB0, 50, "h0", "HB0");                       // set duty cycle value for high side of half bridge 0
+    sendToConsole(_NS_REG_PARAMETER, _NS_P_HB1, 50, "h1", "HB1");                       // set duty cycle value for high side of half bridge 1
+    sendToConsole(_NS_REG_PARAMETER, _NS_P_HB2, 50, "h2", "HB2");                       // set duty cycle value for high side of half bridge 2
+    sendToConsole(_NS_REG_PARAMETER, _NS_P_PL, 50, "pl", "PL");                         // set power level
+}
+
+// check if console has command or parameter setting message available
+void checkMessages(BMotor &motor) {
+    consoleMessageStruct consoleMessage = availableConsoleMessage();                    // see if there are new messages from console
+    if (consoleMessage.messageType != 0) {                                              // if known message type
+        if (consoleMessage.messageType == _NS_COMMAND) {                                // *** if command
+            if (consoleMessage.identifier == _NS_C_FORWARD) motor.forward();            // and command is FORWARD then call forward
+            if (consoleMessage.identifier == _NS_C_STOP) motor.stop();                  // and command is STOP then call stop
+            if (consoleMessage.identifier == _NS_C_REVERSE) motor.reverse();            // and command is REVERSE then call reverse
+            if (consoleMessage.identifier == _NS_C_RIGHT) motor.right();                // and command is RIGHT then call right
+            if (consoleMessage.identifier == _NS_C_LEFT) motor.left();                  // and command is LEFT then call left
+        }
+        if (consoleMessage.messageType == _NS_SET_PARAMETER) {                          // *** if parameter change
+            if (consoleMessage.identifier == _NS_P_HB0) {
+                motor.setDuty0(consoleMessage.value);
+            }
+            if (consoleMessage.identifier == _NS_P_HB1) {
+                motor.setDuty1(consoleMessage.value);
+            }
+            if (consoleMessage.identifier == _NS_P_HB2) {
+                motor.setDuty2(consoleMessage.value);
+            }
+            if (consoleMessage.identifier == _NS_P_PL) {
+                motor.setPowerLevel(consoleMessage.value);
+            }
+        }
+    }
+}
+
+// main task
+void mainTask(void *arg) {
+    BMotor motor((motorConfig *) arg);                                  // create motor instance on this new task thread 
+    bool engaged = false;                                               // motor is not running
+#ifdef _NS_POT_PIN
+    // init code for pot handling
+#endif
+    int64_t lastDisengage = 0;                                          // last time disengaged motor coils
+    while(1) {                                                          // forever
+        if (engaged && ((esp_timer_get_time() - lastDisengage) > 500000)) { // if engaged after some time, disengage to avoid overheating
+            motor.stop();                                          // disengage the coils
+            engaged = false;                                            // reset engage flag
+            lastDisengage = esp_timer_get_time();
+        }
+        checkMessages(motor);                                           // get console messages (commands or parameter updates) and act upon it
+#ifdef _NS_POT_PIN
+    // code for pot handling
+#endif
+        vTaskDelay(1);                                                  // keep watch dog happy
+    }
+}
+
+extern "C" void app_main()
+{
+    initArduino();
+    motorConfig MC;                                                     // define motor config
+    initConsole(_NS_CON_OPTION_NO_UI);                                  // optional console without GUI for debugging using printf() statements
+    // initConsole();                                                      // init console with GUI
+    consoleRegistration();                                              // register commands and parameters
+    MC.pin0A         = GPIO_NUM_16;                                     // set pins
+    MC.pin0B         = GPIO_NUM_21;
+    MC.pin1A         = GPIO_NUM_17;
+    MC.pin1B         = GPIO_NUM_22;
+    MC.pin2A         = GPIO_NUM_18;
+    MC.pin2B         = GPIO_NUM_23;
+    MC.pwmFreq       = 20000;                                           // pwm frequency above human hearing level
+#ifdef _NS_POT_PIN 
+    adc1_config_width(ADC_WIDTH_BIT_12);                                // prepare ADC for potentiometer controlling step frequency
+    adc1_config_channel_atten(_NS_POT_PIN, ADC_ATTEN_DB_11);
+#endif
+    xTaskCreatePinnedToCore(mainTask, "mainTask", 8192, &MC, tskIDLE_PRIORITY, NULL, 1);    // start main task
+    while(1) {
+        vTaskDelay(500 / portTICK_PERIOD_MS);
+    }
+}

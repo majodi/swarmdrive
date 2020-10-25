@@ -41,6 +41,8 @@
     SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 /**************************************************************************/
+#include <Arduino.h>
+
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <driver/adc.h>
@@ -100,7 +102,7 @@ void checkMessages(Motor &motor) {
         if (consoleMessage.messageType == _NS_COMMAND) {                                // *** if command
             if (consoleMessage.identifier == _NS_C_START) motor.startMotor();           // and command is START then start motor
             if (consoleMessage.identifier == _NS_C_TEST) motor.test();                  // run test
-            if (consoleMessage.identifier == _NS_C_RECAL) motor.recal();                // run test
+            if (consoleMessage.identifier == _NS_C_RECAL) motor.recal();                // run recalibrate
             if (consoleMessage.identifier == _NS_C_DEBUG) motor.debugRun();             // turn on debug run
             else if (consoleMessage.identifier == _NS_C_STOP) {                         // if STOP
                 motor.stopMotor();                                                      // stop motor
