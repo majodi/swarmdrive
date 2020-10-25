@@ -86,4 +86,17 @@ FreeRTOS --->
 exit/save
 ```
 
+mbedTLS error
+-------------
+
+If you get an error: “Please configure IDF framework to include mbedTLS -> Enable pre-shared-key ciphersuites and activate at least one cipher” you need to enable these using menuconfig:
+
+platformio run -t menuconfig (make sure your screen is not too small, or this won’t run)
+
+```
+Component Config -> mbedTLS -> TLS Key Exchange Methods -> 
+      [*] Enable pre-shared-key ciphersuits
+        [*] Enable PSK based ciphersuite modes
+```
+
 When more information is available on the release of the SwarmDrive Development Board it will be posted here.
