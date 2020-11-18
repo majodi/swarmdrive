@@ -1,0 +1,145 @@
+/**************************************************************************/
+/*!
+    @file     main.cpp (BLDC SVPWM Example)
+    @author   NickStick BV
+
+    @section  HISTORY
+
+    v0.0 - Start of work
+
+    Example using Motor class for Space Vector PWM BLDC motor commutation using
+    the ESP32 mcpwm module. This code uses the ns_console library
+    for UI purpose.
+
+    @section LICENSE
+
+    Software License Agreement (BSD License)
+
+    Copyright (c) 2020, NickStick BV
+    All rights reserved.
+
+    Redistribution and use in source and binary forms, with or without
+    modification, are permitted provided that the following conditions are met:
+    1. Redistributions of source code must retain the above copyright
+    notice, this list of conditions and the following disclaimer.
+    2. Redistributions in binary form must reproduce the above copyright
+    notice, this list of conditions and the following disclaimer in the
+    documentation and/or other materials provided with the distribution.
+    3. Neither the name of the copyright holders nor the
+    names of its contributors may be used to endorse or promote products
+    derived from this software without specific prior written permission.
+
+    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ''AS IS'' AND ANY
+    EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+    WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+    DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER BE LIABLE FOR ANY
+    DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+    (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+    ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+    (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+    SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*/
+/**************************************************************************/
+#include <Arduino.h>
+
+#include <freertos/FreeRTOS.h>
+#include <freertos/task.h>
+#include <driver/adc.h>
+#include "ns_console.h"
+#include "ns_haptic.h"
+
+using namespace ns_console;
+
+// console commands
+
+// console parameters
+#define _NS_P_SAMP_FREQ 1
+#define _NS_P_ANGLE 2
+#define _NS_P_SPEED 3
+#define _NS_P_DIR 4
+#define _NS_P_PWR 5
+#define _NS_P_RA 6
+
+// defaults
+#define _NS_DEF_SAMP_FREQ 3000
+#define _NS_DEF_POWER 50
+#define _NS_DEF_REPEAT 30
+
+// register console commands/parameters
+void consoleRegistration() {
+    sendToConsole(_NS_REG_PARAMETER, _NS_P_SAMP_FREQ, _NS_DEF_SAMP_FREQ, "sf", "Samp Freq");        // sample frequency parameter
+    sendToConsole(_NS_REG_PARAMETER, _NS_P_ANGLE, 0, "--", "Angle");                                // current angle
+    sendToConsole(_NS_REG_PARAMETER, _NS_P_SPEED, 0, "--", "Speed");                                // current speed
+    sendToConsole(_NS_REG_PARAMETER, _NS_P_DIR, 0, "--", "Dir");                                    // current direction
+    sendToConsole(_NS_REG_PARAMETER, _NS_P_PWR, 50, "p", "Power");                                  // current direction
+    sendToConsole(_NS_REG_PARAMETER, _NS_P_RA, 30, "ra", "Rep. Angle");                           // current direction
+}
+
+// check if console has command or parameter setting message available
+void checkMessages(HRE &hre) {
+    consoleMessageStruct consoleMessage = availableConsoleMessage();                    // see if there are new messages from console
+    if (consoleMessage.messageType != 0) {                                              // if known message type
+        if (consoleMessage.messageType == _NS_COMMAND) {                                // *** if command
+        }
+        else if (consoleMessage.messageType == _NS_SET_PARAMETER) {                     // *** if parameter change
+            if (consoleMessage.identifier == _NS_P_SAMP_FREQ) {                         // sample frequency change
+                hre.setSampleFreq(consoleMessage.value);                                // set new step frequency
+            }
+            if (consoleMessage.identifier == _NS_P_PWR) {
+                hre.setPowerLevel(consoleMessage.value);
+            }
+            if (consoleMessage.identifier == _NS_P_RA) {
+                hre.setRepeatAngle(consoleMessage.value);
+            }
+        }
+    }
+}
+
+// main task
+void mainTask(void *arg) {
+    HRE hre((motorConfig *) arg);                                       // create motor instance on this new task thread
+    int lastAngle = 0;
+    int mod = 0;
+    int speed = 0;
+    int window = 0;
+    while(1) {                                                          // forever
+        lastAngle = hre.getAngle();
+        mod = lastAngle%40;
+        speed = hre.getSpeed();
+        window = (speed / 100) * 2;
+        window = window < 7 ? 7 : window;
+        window = window > 15 ? 15 : window;
+        if ((mod > 0) && (mod < window)) {
+            printf("do %d speed: %d, dir: %d window: %d\n", lastAngle, speed, hre.getDirection(), window);
+            hre.handle(lastAngle);
+        }
+        vTaskDelay(1);                                                // keep watch dog happy
+    }
+}
+
+extern "C" void app_main()
+{
+    motorConfig MC;                                                     // define motor config
+    initConsole(_NS_CON_OPTION_NO_UI);                                  // optional console without GUI for debugging using printf() statements
+    // initConsole();                                                      // init console with GUI
+    consoleRegistration();                                              // register commands and parameters
+    MC.pin0A         = GPIO_NUM_16;                                     // set pins
+    MC.pin0B         = GPIO_NUM_21;
+    MC.pin1A         = GPIO_NUM_17;
+    MC.pin1B         = GPIO_NUM_22;
+    MC.pin2A         = GPIO_NUM_18;
+    MC.pin2B         = GPIO_NUM_23;
+    MC.rpsPinSDA     = GPIO_NUM_32;
+    MC.rpsPinSCL     = GPIO_NUM_33;
+    MC.rpsResolution = AS5048B_RESOLUTION;                              // resolution of RPS (Rotational Position Sensor) to 14 bit = 2^14 - 1
+    MC.rpsFrontMount = false;                                           // senser mounted on the back of the motor
+    MC.pwmFreq       = 5000;                                            // pwm frequency (test if this affects things)
+    MC.sampleFreq    = _NS_DEF_SAMP_FREQ;                               // position sampling speed
+    MC.powerLevel    = _NS_DEF_POWER;                                   // power level
+    MC.repeatAngleDeg= _NS_DEF_REPEAT;                                  // repeat angle in degrees
+    xTaskCreatePinnedToCore(mainTask, "mainTask", 8192, &MC, tskIDLE_PRIORITY, NULL, 1);    // start main task
+    while(1) {
+        vTaskDelay(500 / portTICK_PERIOD_MS);
+    }
+}
