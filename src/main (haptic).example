@@ -1,15 +1,13 @@
 /**************************************************************************/
 /*!
-    @file     main.cpp (BLDC SVPWM Example)
+    @file     main.cpp (Haptic Example)
     @author   NickStick BV
 
     @section  HISTORY
 
     v0.0 - Start of work
 
-    Example using Motor class for Space Vector PWM BLDC motor commutation using
-    the ESP32 mcpwm module. This code uses the ns_console library
-    for UI purpose.
+    Example for simple haptic rotary encoder functionality.
 
     @section LICENSE
 
